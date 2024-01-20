@@ -379,6 +379,8 @@ XA_CARDINAL     :: x11.Atom(6)
 FNV_HASH32_INIT :: 0x811c9dc5
 @private
 FNV_HASH32_PRIME :: 0x01000193
+@private
+INIT_UI_STACK_SIZE :: 256
 
 COLOR_BLACK   :: Color{0, 0, 0, 255}
 COLOR_WHITE   :: Color{255, 255, 255, 255}
@@ -651,64 +653,64 @@ x11_go_fullscreen :: proc() {
   // remove the resizing constraint before going fullscreen so WMs such as gnome
   // can add the _NET_WM_ACTION_FULLSCREEN action to the _NET_WM_ALLOWED_ACTIONS atom
   // and properly fullscreen the window
-  size_hints := x11.XAllocSizeHints();
+  size_hints := x11.XAllocSizeHints()
 
-  zephr_ctx.window.pre_fullscreen_size.x = zephr_ctx.window.size.x;
-  zephr_ctx.window.pre_fullscreen_size.y = zephr_ctx.window.size.y;
+  zephr_ctx.window.pre_fullscreen_size.x = zephr_ctx.window.size.x
+  zephr_ctx.window.pre_fullscreen_size.y = zephr_ctx.window.size.y
   if (size_hints != nil) {
-    size_hints.flags = {.PPosition, .PSize};
-    size_hints.width = cast(i32)zephr_ctx.window.size.x;
-    size_hints.height = cast(i32)zephr_ctx.window.size.y;
-    x11.XSetWMNormalHints(x11_display, x11_window, size_hints);
-    x11.XFree(size_hints);
+    size_hints.flags = {.PPosition, .PSize}
+    size_hints.width = cast(i32)zephr_ctx.window.size.x
+    size_hints.height = cast(i32)zephr_ctx.window.size.y
+    x11.XSetWMNormalHints(x11_display, x11_window, size_hints)
+    x11.XFree(size_hints)
   }
 
-  xev: x11.XEvent;
-  wm_state := x11.XInternAtom(x11_display, "_NET_WM_STATE", false);
-  fullscreen := x11.XInternAtom(x11_display, "_NET_WM_STATE_FULLSCREEN", false);
-  xev.type = .ClientMessage;
-  xev.xclient.window = x11_window;
-  xev.xclient.message_type = wm_state;
-  xev.xclient.format = 32;
-  xev.xclient.data.l[0] = 1; // _NET_WM_STATE_ADD
-  xev.xclient.data.l[1] = cast(int)fullscreen;
-  xev.xclient.data.l[2] = 0;
+  xev: x11.XEvent
+  wm_state := x11.XInternAtom(x11_display, "_NET_WM_STATE", false)
+  fullscreen := x11.XInternAtom(x11_display, "_NET_WM_STATE_FULLSCREEN", false)
+  xev.type = .ClientMessage
+  xev.xclient.window = x11_window
+  xev.xclient.message_type = wm_state
+  xev.xclient.format = 32
+  xev.xclient.data.l[0] = 1 // _NET_WM_STATE_ADD
+  xev.xclient.data.l[1] = cast(int)fullscreen
+  xev.xclient.data.l[2] = 0
   x11.XSendEvent(x11_display, x11.XDefaultRootWindow(x11_display), false,
-  {.SubstructureNotify, .SubstructureRedirect}, &xev);
+  {.SubstructureNotify, .SubstructureRedirect}, &xev)
 }
 
 @private
 x11_return_fullscreen :: proc() {
-  xev: x11.XEvent;
-  wm_state := x11.XInternAtom(x11_display, "_NET_WM_STATE", false);
-  fullscreen := x11.XInternAtom(x11_display, "_NET_WM_STATE_FULLSCREEN", false);
-  xev.type = .ClientMessage;
-  xev.xclient.window = x11_window;
-  xev.xclient.message_type = wm_state;
-  xev.xclient.format = 32;
-  xev.xclient.data.l[0] = 0; // _NET_WM_STATE_REMOVE
-  xev.xclient.data.l[1] = cast(int)fullscreen;
-  xev.xclient.data.l[2] = 0;
+  xev: x11.XEvent
+  wm_state := x11.XInternAtom(x11_display, "_NET_WM_STATE", false)
+  fullscreen := x11.XInternAtom(x11_display, "_NET_WM_STATE_FULLSCREEN", false)
+  xev.type = .ClientMessage
+  xev.xclient.window = x11_window
+  xev.xclient.message_type = wm_state
+  xev.xclient.format = 32
+  xev.xclient.data.l[0] = 0 // _NET_WM_STATE_REMOVE
+  xev.xclient.data.l[1] = cast(int)fullscreen
+  xev.xclient.data.l[2] = 0
   x11.XSendEvent(x11_display, x11.XDefaultRootWindow(x11_display), false,
-  {.SubstructureNotify, .SubstructureRedirect}, &xev);
+  {.SubstructureNotify, .SubstructureRedirect}, &xev)
 
   // restore the resizing constraint as well as the pre-fullscreen window size
   // when returning from fullscreen
-  size_hints := x11.XAllocSizeHints();
+  size_hints := x11.XAllocSizeHints()
 
   if (size_hints != nil) {
-    size_hints.flags = {.PPosition, .PSize};
-    size_hints.width = cast(i32)zephr_ctx.window.pre_fullscreen_size.x;
-    size_hints.height = cast(i32)zephr_ctx.window.pre_fullscreen_size.y;
+    size_hints.flags = {.PPosition, .PSize}
+    size_hints.width = cast(i32)zephr_ctx.window.pre_fullscreen_size.x
+    size_hints.height = cast(i32)zephr_ctx.window.pre_fullscreen_size.y
     if (zephr_ctx.window.non_resizable) {
-      size_hints.flags |= {.PMinSize, .PMaxSize};
-      size_hints.min_width = cast(i32)zephr_ctx.window.pre_fullscreen_size.x;
-      size_hints.min_height = cast(i32)zephr_ctx.window.pre_fullscreen_size.y;
-      size_hints.max_width = cast(i32)zephr_ctx.window.pre_fullscreen_size.x;
-      size_hints.max_height = cast(i32)zephr_ctx.window.pre_fullscreen_size.y;
+      size_hints.flags |= {.PMinSize, .PMaxSize}
+      size_hints.min_width = cast(i32)zephr_ctx.window.pre_fullscreen_size.x
+      size_hints.min_height = cast(i32)zephr_ctx.window.pre_fullscreen_size.y
+      size_hints.max_width = cast(i32)zephr_ctx.window.pre_fullscreen_size.x
+      size_hints.max_height = cast(i32)zephr_ctx.window.pre_fullscreen_size.y
     }
-    x11.XSetWMNormalHints(x11_display, x11_window, size_hints);
-    x11.XFree(size_hints);
+    x11.XSetWMNormalHints(x11_display, x11_window, size_hints)
+    x11.XFree(size_hints)
   }
 }
 
@@ -727,30 +729,30 @@ x11_toggle_fullscreen :: proc(fullscreen: bool) {
 @private
 x11_assign_window_icon :: proc(icon_path: cstring) {
   icon_width, icon_height: i32
-  icon_data := image.load(icon_path, &icon_width, &icon_height, nil, 4);
+  icon_data := image.load(icon_path, &icon_width, &icon_height, nil, 4)
   defer image.image_free(icon_data)
   assert(icon_data != nil, "Failed to load icon image")
 
-  target_size := 2 + icon_width * icon_height;
+  target_size := 2 + icon_width * icon_height
 
   data := make([]u64, target_size * size_of(u64))
 
   // first two elements are width and height
-  data[0] = cast(u64)icon_width;
-  data[1] = cast(u64)icon_height;
+  data[0] = cast(u64)icon_width
+  data[1] = cast(u64)icon_height
 
   for i in 0..<(icon_width*icon_height) {
     data[i + 2] = cast(u64)((icon_data[i * 4] << 16) | (icon_data[i * 4 + 1] << 8) | (icon_data[i * 4 + 2] << 0) | (icon_data[i * 4 + 3] << 24))
   }
 
-  net_wm_icon := x11.XInternAtom(x11_display, "_NET_WM_ICON", false);
+  net_wm_icon := x11.XInternAtom(x11_display, "_NET_WM_ICON", false)
 
-  x11.XChangeProperty(x11_display, x11_window, net_wm_icon, XA_CARDINAL, 32, PropModeReplace, raw_data(data), target_size);
+  x11.XChangeProperty(x11_display, x11_window, net_wm_icon, XA_CARDINAL, 32, PropModeReplace, raw_data(data), target_size)
 }
 
 @private
 x11_get_screen_size :: proc() -> Vec2 {
-  screen := x11.XDefaultScreenOfDisplay(x11_display);
+  screen := x11.XDefaultScreenOfDisplay(x11_display)
 
   return Vec2{cast(f32)screen.width, cast(f32)screen.height}
 }
@@ -792,7 +794,7 @@ x11_create_window :: proc(window_title: cstring, window_size: Vec2, icon_path: c
     {.CWColormap, .CWEventMask}, &attributes)
 
   if (icon_path != "") {
-    x11_assign_window_icon(icon_path);
+    x11_assign_window_icon(icon_path)
   }
 
   // Hints to the WM that the window is a normal window
@@ -803,7 +805,7 @@ x11_create_window :: proc(window_title: cstring, window_size: Vec2, icon_path: c
 
   wm_delete_window := x11.XInternAtom(x11_display, "WM_DELETE_WINDOW", false)
   x11.XSetWMProtocols(x11_display, x11_window, &wm_delete_window, 1)
-  zephr_ctx.window_delete_atom = wm_delete_window;
+  zephr_ctx.window_delete_atom = wm_delete_window
 
   // set window name
   {
@@ -840,11 +842,11 @@ x11_create_window :: proc(window_title: cstring, window_size: Vec2, icon_path: c
     size_hints.width = cast(i32)window_size.x
     size_hints.height = cast(i32)window_size.y
     if (window_non_resizable) {
-      size_hints.flags |= {.PMinSize, .PMaxSize};
-      size_hints.min_width = cast(i32)window_size.x;
-      size_hints.min_height = cast(i32)window_size.y;
-      size_hints.max_width = cast(i32)window_size.x;
-      size_hints.max_height = cast(i32)window_size.y;
+      size_hints.flags |= {.PMinSize, .PMaxSize}
+      size_hints.min_width = cast(i32)window_size.x
+      size_hints.min_height = cast(i32)window_size.y
+      size_hints.max_width = cast(i32)window_size.x
+      size_hints.max_height = cast(i32)window_size.y
     }
     x11.XSetWMNormalHints(x11_display, x11_window, size_hints)
     x11.XFree(size_hints)
@@ -877,16 +879,16 @@ x11_create_window :: proc(window_title: cstring, window_size: Vec2, icon_path: c
     glx.CONTEXT_MINOR_VERSION_ARB, 3,
     glx.CONTEXT_PROFILE_MASK_ARB, glx.CONTEXT_CORE_PROFILE_BIT_ARB,
     x11.None,
-  };
+  }
 
-  glx_context = glx.CreateContextAttribsARB(x11_display, fbc[0], nil, true, raw_data(context_attributes));
+  glx_context = glx.CreateContextAttribsARB(x11_display, fbc[0], nil, true, raw_data(context_attributes))
 
   if glx_context == nil {
     fmt.eprintf("Failed to create GLX context\n")
     return
   }
 
-  glx.MakeCurrent(x11_display, x11_window, glx_context);
+  glx.MakeCurrent(x11_display, x11_window, glx_context)
 
   // TODO: find a way to properly get the GL version
   gl_major: i32 = ---
@@ -896,7 +898,7 @@ x11_create_window :: proc(window_title: cstring, window_size: Vec2, icon_path: c
 
   fmt.printf("GL version: %d.%d\n", gl_major, gl_minor)
 
-  glx.SwapIntervalEXT(x11_display, x11_window, 1);
+  glx.SwapIntervalEXT(x11_display, x11_window, 1)
   // we enable blending for text
   gl.Enable(gl.BLEND)
   gl.Enable(gl.MULTISAMPLE)
@@ -913,12 +915,12 @@ x11_init :: proc(window_title: cstring, window_size: Vec2, icon_path: cstring, w
 
 @private
 x11_close :: proc() {
-  glx.MakeCurrent(x11_display, 0, nil);
-  glx.DestroyContext(x11_display, glx_context);
+  glx.MakeCurrent(x11_display, 0, nil)
+  glx.DestroyContext(x11_display, glx_context)
 
-  x11.XDestroyWindow(x11_display, x11_window);
-  x11.XFreeColormap(x11_display, x11_colormap);
-  x11.XCloseDisplay(x11_display);
+  x11.XDestroyWindow(x11_display, x11_window)
+  x11.XFreeColormap(x11_display, x11_colormap)
+  x11.XCloseDisplay(x11_display)
 }
 
 
@@ -938,22 +940,24 @@ init :: proc(font_path: cstring, icon_path: cstring, window_title: cstring, wind
 
     ui_init(font_path)
 
+    zephr_ctx.ui.elements = make([dynamic]UiElement, INIT_UI_STACK_SIZE)
+    zephr_ctx.mouse.pos = Vec2{-1, -1}
     zephr_ctx.window.size = window_size
     zephr_ctx.window.non_resizable = window_non_resizable
     zephr_ctx.projection = orthographic_projection_2d(0, window_size.x, window_size.y, 0)
 
-    zephr_ctx.cursors[.ARROW] = x11.XCreateFontCursor(x11_display, .XC_left_ptr);
-    zephr_ctx.cursors[.IBEAM] = x11.XCreateFontCursor(x11_display, .XC_xterm);
-    zephr_ctx.cursors[.CROSSHAIR] = x11.XCreateFontCursor(x11_display, .XC_crosshair);
-    zephr_ctx.cursors[.HAND] = x11.XCreateFontCursor(x11_display, .XC_hand1);
-    zephr_ctx.cursors[.HRESIZE] = x11.XCreateFontCursor(x11_display, .XC_sb_h_double_arrow);
-    zephr_ctx.cursors[.VRESIZE] = x11.XCreateFontCursor(x11_display, .XC_sb_v_double_arrow);
+    zephr_ctx.cursors[.ARROW] = x11.XCreateFontCursor(x11_display, .XC_left_ptr)
+    zephr_ctx.cursors[.IBEAM] = x11.XCreateFontCursor(x11_display, .XC_xterm)
+    zephr_ctx.cursors[.CROSSHAIR] = x11.XCreateFontCursor(x11_display, .XC_crosshair)
+    zephr_ctx.cursors[.HAND] = x11.XCreateFontCursor(x11_display, .XC_hand1)
+    zephr_ctx.cursors[.HRESIZE] = x11.XCreateFontCursor(x11_display, .XC_sb_h_double_arrow)
+    zephr_ctx.cursors[.VRESIZE] = x11.XCreateFontCursor(x11_display, .XC_sb_v_double_arrow)
 
     // non-standard cursors
-    zephr_ctx.cursors[.DISABLED] = xcursor.LibraryLoadCursor(x11_display, "crossed_circle");
+    zephr_ctx.cursors[.DISABLED] = xcursor.LibraryLoadCursor(x11_display, "crossed_circle")
 
-    zephr_ctx.screen_size = x11_get_screen_size();
-    start_internal_timer();
+    zephr_ctx.screen_size = x11_get_screen_size()
+    start_internal_timer()
 }
 
 deinit :: proc() {
@@ -965,24 +969,42 @@ should_quit :: proc() -> bool {
   gl.ClearColor(0, 0, 0, 1)
   gl.Clear(gl.COLOR_BUFFER_BIT)
 
-  zephr_ctx.cursor = .ARROW;
-  zephr_ctx.mouse.released = false;
-  zephr_ctx.mouse.pressed = false;
+  zephr_ctx.cursor = .ARROW
+  zephr_ctx.mouse.released = false
+  zephr_ctx.mouse.pressed = false
 
   //audio_update();
 
-  return zephr_ctx.should_quit;
+  return zephr_ctx.should_quit
 }
 
 quit :: proc() {
-  zephr_ctx.should_quit = true;
+  zephr_ctx.should_quit = true
+}
+
+@private
+consume_mouse_events :: proc() -> bool {
+  defer clear(&zephr_ctx.ui.elements)
+
+  #reverse for e in zephr_ctx.ui.elements {
+    if (inside_rect(e.rect, zephr_ctx.mouse.pos)) {
+      zephr_ctx.ui.hovered_element = e.id
+      return false
+    }
+  }
+
+  return true
 }
 
 swap_buffers :: proc() {
   if (zephr_ctx.ui.popup_open) {
-    draw_color_picker_popup(&zephr_ctx.ui.popup_parent_constraints);
+    draw_color_picker_popup(&zephr_ctx.ui.popup_parent_constraints)
   }
-  zephr_ctx.ui.popup_open = false;
+  zephr_ctx.ui.popup_open = false
+
+  if consume_mouse_events() {
+    zephr_ctx.ui.hovered_element = 0
+  }
 
   glx.SwapBuffers(x11_display, x11_window)
   x11.XDefineCursor(x11_display, x11_window, zephr_ctx.cursors[zephr_ctx.cursor])
@@ -1010,77 +1032,77 @@ iter_events :: proc(e_out: ^Event) -> bool {
       }
     } else if xev.type == .DestroyNotify {
       // window destroy event
-      e_out.type = .WINDOW_CLOSED;
+      e_out.type = .WINDOW_CLOSED
 
-      return true;
+      return true
     } else if xev.type == .ClientMessage {
       // window close event
       if (cast(x11.Atom)xev.xclient.data.l[0] == zephr_ctx.window_delete_atom) {
-        e_out.type = .WINDOW_CLOSED;
+        e_out.type = .WINDOW_CLOSED
 
-        return true;
+        return true
       }
     } else if xev.type == .KeyPress {
-      xke := xev.xkey;
+      xke := xev.xkey
 
-      evdev_keycode := xke.keycode - 8;
-      scancode := evdev_scancode_to_zephr_scancode_map[evdev_keycode];
+      evdev_keycode := xke.keycode - 8
+      scancode := evdev_scancode_to_zephr_scancode_map[evdev_keycode]
 
-      e_out.type = .KEY_PRESSED;
-      e_out.key.scancode = scancode;
+      e_out.type = .KEY_PRESSED
+      e_out.key.scancode = scancode
       //e_out.key.code = keycode;
-      e_out.key.mods = x11_mods_to_zephr_mods(scancode, true);
+      e_out.key.mods = x11_mods_to_zephr_mods(scancode, true)
 
       return true
     } else if xev.type == .KeyRelease {
-      xke := xev.xkey;
+      xke := xev.xkey
 
-      evdev_keycode := xke.keycode - 8;
-      scancode := evdev_scancode_to_zephr_scancode_map[evdev_keycode];
+      evdev_keycode := xke.keycode - 8
+      scancode := evdev_scancode_to_zephr_scancode_map[evdev_keycode]
 
-      e_out.type = .KEY_RELEASED;
+      e_out.type = .KEY_RELEASED
       e_out.key.scancode = scancode
       //e_out.key.code = keycode;
-      e_out.key.mods = x11_mods_to_zephr_mods(scancode, false);
+      e_out.key.mods = x11_mods_to_zephr_mods(scancode, false)
 
       return true
     } else if xev.type == .ButtonPress {
-      e_out.type = .MOUSE_BUTTON_PRESSED;
-      e_out.mouse.pos = Vec2{cast(f32)xev.xbutton.x, cast(f32)xev.xbutton.y};
-      zephr_ctx.mouse.pressed = true;
+      e_out.type = .MOUSE_BUTTON_PRESSED
+      e_out.mouse.pos = Vec2{cast(f32)xev.xbutton.x, cast(f32)xev.xbutton.y}
+      zephr_ctx.mouse.pressed = true
 
       switch (xev.xbutton.button) {
         case .Button1:
-        e_out.mouse.button = .BUTTON_LEFT;
-        zephr_ctx.mouse.button = .BUTTON_LEFT;
+        e_out.mouse.button = .BUTTON_LEFT
+        zephr_ctx.mouse.button = .BUTTON_LEFT
         case .Button2:
-        e_out.mouse.button = .BUTTON_MIDDLE;
-        zephr_ctx.mouse.button = .BUTTON_MIDDLE;
+        e_out.mouse.button = .BUTTON_MIDDLE
+        zephr_ctx.mouse.button = .BUTTON_MIDDLE
         case .Button3:
-        e_out.mouse.button = .BUTTON_RIGHT;
-        zephr_ctx.mouse.button = .BUTTON_RIGHT;
+        e_out.mouse.button = .BUTTON_RIGHT
+        zephr_ctx.mouse.button = .BUTTON_RIGHT
         case .Button4:
-        e_out.type = .MOUSE_SCROLL;
-        e_out.mouse.scroll_direction = .UP;
+        e_out.type = .MOUSE_SCROLL
+        e_out.mouse.scroll_direction = .UP
         case .Button5:
-        e_out.type = .MOUSE_SCROLL;
-        e_out.mouse.scroll_direction = .DOWN;
+        e_out.type = .MOUSE_SCROLL
+        e_out.mouse.scroll_direction = .DOWN
         case cast(x11.MouseButton)8: // Back
-        e_out.mouse.button = .BUTTON_BACK;
-        zephr_ctx.mouse.button = .BUTTON_BACK;
+        e_out.mouse.button = .BUTTON_BACK
+        zephr_ctx.mouse.button = .BUTTON_BACK
         case cast(x11.MouseButton)9: // Forward
-        e_out.mouse.button = .BUTTON_FORWARD;
-        zephr_ctx.mouse.button = .BUTTON_FORWARD;
+        e_out.mouse.button = .BUTTON_FORWARD
+        zephr_ctx.mouse.button = .BUTTON_FORWARD
         case:
-        fmt.printf("[WARN] Unknown mouse button pressed: %d\n", xev.xbutton.button);
+        fmt.printf("[WARN] Unknown mouse button pressed: %d\n", xev.xbutton.button)
       }
 
       return true
     } else if xev.type == .ButtonRelease {
-      e_out.type = .MOUSE_BUTTON_RELEASED;
-      e_out.mouse.pos = Vec2{cast(f32)xev.xbutton.x, cast(f32)xev.xbutton.y};
-      zephr_ctx.mouse.released = true;
-      zephr_ctx.mouse.pressed = false;
+      e_out.type = .MOUSE_BUTTON_RELEASED
+      e_out.mouse.pos = Vec2{cast(f32)xev.xbutton.x, cast(f32)xev.xbutton.y}
+      zephr_ctx.mouse.released = true
+      zephr_ctx.mouse.pressed = false
 
       switch (xev.xbutton.button) {
         case .Button1:
@@ -1090,34 +1112,34 @@ iter_events :: proc(e_out: ^Event) -> bool {
         case .Button3:
         e_out.mouse.button = .BUTTON_RIGHT
         case .Button4:
-        e_out.type = .MOUSE_SCROLL;
-        e_out.mouse.scroll_direction = .UP;
+        e_out.type = .MOUSE_SCROLL
+        e_out.mouse.scroll_direction = .UP
         case .Button5:
-        e_out.type = .MOUSE_SCROLL;
-        e_out.mouse.scroll_direction = .DOWN;
+        e_out.type = .MOUSE_SCROLL
+        e_out.mouse.scroll_direction = .DOWN
         case cast(x11.MouseButton)8: // Back
-        e_out.mouse.button = .BUTTON_BACK;
-        zephr_ctx.mouse.button = .BUTTON_BACK;
+        e_out.mouse.button = .BUTTON_BACK
+        zephr_ctx.mouse.button = .BUTTON_BACK
         case cast(x11.MouseButton)9: // Forward
-        e_out.mouse.button = .BUTTON_FORWARD;
-        zephr_ctx.mouse.button = .BUTTON_FORWARD;
+        e_out.mouse.button = .BUTTON_FORWARD
+        zephr_ctx.mouse.button = .BUTTON_FORWARD
       }
 
-      return true;
+      return true
     } else if xev.type == .MappingNotify {
       // input device mapping changed
       if (xev.xmapping.request != .MappingKeyboard) {
-        break;
+        break
       }
-      x11.XRefreshKeyboardMapping(&xev.xmapping);
+      x11.XRefreshKeyboardMapping(&xev.xmapping)
       /* x11_keyboard_map_update(); */
-      break;
+      break
     } else if xev.type == .MotionNotify {
-      e_out.type = .MOUSE_MOVED;
-      e_out.mouse.pos = Vec2{cast(f32)xev.xmotion.x, cast(f32)xev.xmotion.y};
-      zephr_ctx.mouse.pos = e_out.mouse.pos;
+      e_out.type = .MOUSE_MOVED
+      e_out.mouse.pos = Vec2{cast(f32)xev.xmotion.x, cast(f32)xev.xmotion.y}
+      zephr_ctx.mouse.pos = e_out.mouse.pos
 
-      return true;
+      return true
     }
   }
 
@@ -1125,17 +1147,18 @@ iter_events :: proc(e_out: ^Event) -> bool {
 }
 
 get_window_size :: proc() -> Vec2 {
-  return zephr_ctx.window.size;
+  return zephr_ctx.window.size
 }
 
 toggle_fullscreen :: proc() {
-  x11_toggle_fullscreen(zephr_ctx.window.is_fullscreen);
+  x11_toggle_fullscreen(zephr_ctx.window.is_fullscreen)
 
-  zephr_ctx.window.is_fullscreen = !zephr_ctx.window.is_fullscreen;
+  zephr_ctx.window.is_fullscreen = !zephr_ctx.window.is_fullscreen
 }
 
+@private
 set_cursor :: proc(cursor: Cursor) {
-  zephr_ctx.cursor = cursor;
+  zephr_ctx.cursor = cursor
 }
 
 
@@ -1153,8 +1176,8 @@ fnv_hash32 :: proc(data: []byte, size: u32, hash: u32) -> u32 {
   hash := hash
 
   for i in 0..<size {
-    hash ~= cast(u32)data[i];
-    hash *= FNV_HASH32_PRIME;
+    hash ~= cast(u32)data[i]
+    hash *= FNV_HASH32_PRIME
   }
 
   return hash
@@ -1167,84 +1190,85 @@ x11_mods_to_zephr_mods :: proc(scancode: Scancode, is_press: bool) -> KeyMod {
   // TODO: figure out a better way of doing this
   if (is_press) {
     if (scancode == .LEFT_SHIFT) {
-      mods |= {.LEFT_SHIFT, .SHIFT};
+      mods |= {.LEFT_SHIFT, .SHIFT}
     }
     if (scancode == .RIGHT_SHIFT) {
-      mods |= {.RIGHT_SHIFT, .SHIFT};
+      mods |= {.RIGHT_SHIFT, .SHIFT}
     }
     if (scancode == .LEFT_CTRL) {
-      mods |= {.LEFT_CTRL, .CTRL};
+      mods |= {.LEFT_CTRL, .CTRL}
     }
     if (scancode == .RIGHT_CTRL) {
-      mods |= {.RIGHT_CTRL, .CTRL};
+      mods |= {.RIGHT_CTRL, .CTRL}
     }
     if (scancode == .LEFT_ALT) {
-      mods |= {.LEFT_ALT, .ALT};
+      mods |= {.LEFT_ALT, .ALT}
     }
     if (scancode == .RIGHT_ALT) {
-      mods |= {.RIGHT_ALT, .ALT};
+      mods |= {.RIGHT_ALT, .ALT}
     }
     if (scancode == .LEFT_META) {
-      mods |= {.LEFT_META, .META};
+      mods |= {.LEFT_META, .META}
     }
     if (scancode == .RIGHT_META) {
-      mods |= {.RIGHT_META, .META};
+      mods |= {.RIGHT_META, .META}
     }
     if (scancode == .CAPS_LOCK) {
-      mods |= {.CAPS_LOCK};
+      mods |= {.CAPS_LOCK}
     }
     if (scancode == .NUM_LOCK_OR_CLEAR) {
-      mods |= {.NUM_LOCK};
+      mods |= {.NUM_LOCK}
     }
   } else {
     if (scancode == .LEFT_SHIFT) {
-      mods &= ~{.LEFT_SHIFT};
+      mods &= ~{.LEFT_SHIFT}
     }
     if (scancode == .RIGHT_SHIFT) {
-      mods &= ~{.RIGHT_SHIFT};
+      mods &= ~{.RIGHT_SHIFT}
     }
     if (!(.RIGHT_SHIFT in mods) && !(.LEFT_SHIFT in mods)) {
-      mods &= ~{.SHIFT};
+      mods &= ~{.SHIFT}
     }
 
     if (scancode == .LEFT_CTRL) {
-      mods &= ~{.LEFT_CTRL};
+      mods &= ~{.LEFT_CTRL}
     }
     if (scancode == .RIGHT_CTRL) {
-      mods &= ~{.RIGHT_CTRL};
+      mods &= ~{.RIGHT_CTRL}
     }
     if (!(.RIGHT_CTRL in mods) && !(.LEFT_CTRL in mods)) {
-      mods &= ~{.CTRL};
+      mods &= ~{.CTRL}
     }
 
     if (scancode == .LEFT_ALT) {
-      mods &= ~{.LEFT_ALT};
+      mods &= ~{.LEFT_ALT}
     }
     if (scancode == .RIGHT_ALT) {
-      mods &= ~{.RIGHT_ALT};
+      mods &= ~{.RIGHT_ALT}
     }
     if (!(.RIGHT_ALT in mods) && !(.LEFT_ALT in mods)) {
-      mods &= ~{.ALT};
+      mods &= ~{.ALT}
     }
 
     if (scancode == .LEFT_META) {
-      mods &= ~{.LEFT_META};
+      mods &= ~{.LEFT_META}
     }
     if (scancode == .RIGHT_META) {
-      mods &= ~{.RIGHT_META};
+      mods &= ~{.RIGHT_META}
     }
     if (!(.RIGHT_META in mods) && !(.LEFT_META in mods)) {
-      mods &= ~{.META};
+      mods &= ~{.META}
     }
 
     if (scancode == .CAPS_LOCK) {
-      mods &= ~{.CAPS_LOCK};
+      mods &= ~{.CAPS_LOCK}
     }
     if (scancode == .NUM_LOCK_OR_CLEAR) {
-      mods &= ~{.NUM_LOCK};
+      mods &= ~{.NUM_LOCK}
     }
   }
 
   zephr_ctx.keyboard.mods = mods
-  return mods;
+  return mods
 }
+

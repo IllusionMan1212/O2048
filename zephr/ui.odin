@@ -55,8 +55,15 @@ UiStyle :: struct {
   align: Alignment,
 }
 
+UiElement :: struct {
+  id: UiIdHash,
+  rect: Rect,
+}
+
 Ui :: struct {
+  hovered_element: UiIdHash,
   active_element: UiIdHash,
+  elements: [dynamic]UiElement,
   popup_open: bool,
   popup_parent_hash: UiIdHash,
   popup_rect: Rect,
@@ -85,12 +92,12 @@ DEFAULT_UI_CONSTRAINTS :: UiConstraints{
 
 @private
 ui_init :: proc(font_path: cstring) {
-  res := init_fonts(font_path);
+  res := init_fonts(font_path)
   if (res == -1) {
-    fmt.printf("[ERROR]: could not initialize freetype library\n");
+    fmt.eprintf("[ERROR]: could not initialize freetype library\n")
     os.exit(1)
   } else if (res == -2) {
-    fmt.printf("[ERROR]: could not load font file: \"%s\"\n", font_path);
+    fmt.eprintf("[ERROR]: could not load font file: \"%s\"\n", font_path)
     os.exit(1)
   } else if (res != 0) {
     os.exit(1)
@@ -103,25 +110,25 @@ ui_init :: proc(font_path: cstring) {
   color_chooser_shader = l_color_chooser_shader
 
   if !success1 || !success2 {
-    fmt.printf("[ERROR]: could not load ui shaders\n");
+    fmt.eprintf("[ERROR]: could not load ui shaders\n")
     os.exit(1)
   }
 
-  gl.GenVertexArrays(1, &ui_vao);
-  gl.GenBuffers(1, &ui_vbo);
+  gl.GenVertexArrays(1, &ui_vao)
+  gl.GenBuffers(1, &ui_vbo)
 
-  gl.BindVertexArray(ui_vao);
-  gl.BindBuffer(gl.ARRAY_BUFFER, ui_vbo);
-  gl.BufferData(gl.ARRAY_BUFFER, size_of(f32) * 6 * 4, nil, gl.DYNAMIC_DRAW);
-  gl.EnableVertexAttribArray(0);
-  gl.VertexAttribPointer(0, 4, gl.FLOAT, gl.FALSE, 4 * size_of(f32), 0);
+  gl.BindVertexArray(ui_vao)
+  gl.BindBuffer(gl.ARRAY_BUFFER, ui_vbo)
+  gl.BufferData(gl.ARRAY_BUFFER, size_of(f32) * 6 * 4, nil, gl.DYNAMIC_DRAW)
+  gl.EnableVertexAttribArray(0)
+  gl.VertexAttribPointer(0, 4, gl.FLOAT, gl.FALSE, 4 * size_of(f32), 0)
 
-  gl.BindBuffer(gl.ARRAY_BUFFER, 0);
-  gl.BindVertexArray(0);
+  gl.BindBuffer(gl.ARRAY_BUFFER, 0)
+  gl.BindVertexArray(0)
 }
 
 set_parent_constraint :: proc(constraints: ^UiConstraints, parent_constraints: ^UiConstraints) {
-  constraints.parent = parent_constraints;
+  constraints.parent = parent_constraints
 }
 
 set_x_constraint :: proc(constraints: ^UiConstraints, value: f32, type: UiConstraint) {
@@ -129,19 +136,19 @@ set_x_constraint :: proc(constraints: ^UiConstraints, value: f32, type: UiConstr
     case .ASPECT_RATIO: // no-op. fall back to FIXED
     fallthrough
     case .FIXED:
-      constraints.x = value;
+      constraints.x = value
     case .RELATIVE:
       if (constraints.parent != nil) {
-        constraints.x = (value * constraints.parent.width);
+        constraints.x = (value * constraints.parent.width)
       } else {
-        constraints.x = (value * zephr_ctx.window.size.x);
+        constraints.x = (value * zephr_ctx.window.size.x)
       }
     case .RELATIVE_PIXELS:
-      constraints.x = zephr_ctx.window.size.x / zephr_ctx.screen_size.x * value;
+      constraints.x = zephr_ctx.window.size.x / zephr_ctx.screen_size.x * value
   }
 
   if (constraints.parent != nil) {
-    constraints.x += constraints.parent.x;
+    constraints.x += constraints.parent.x
   }
 }
 
@@ -150,102 +157,102 @@ set_y_constraint :: proc(constraints: ^UiConstraints, value: f32, type: UiConstr
     case .ASPECT_RATIO: // no-op. fall back to FIXED
     fallthrough
     case .FIXED:
-      constraints.y = value;
+      constraints.y = value
     case .RELATIVE:
       if (constraints.parent != nil) {
-        constraints.y = (value * constraints.parent.height);
+        constraints.y = (value * constraints.parent.height)
       } else {
-        constraints.y = (value * zephr_ctx.window.size.y);
+        constraints.y = (value * zephr_ctx.window.size.y)
       }
     case .RELATIVE_PIXELS:
-      constraints.y = zephr_ctx.window.size.y / zephr_ctx.screen_size.y * value;
+      constraints.y = zephr_ctx.window.size.y / zephr_ctx.screen_size.y * value
   }
 
   if (constraints.parent != nil) {
-    constraints.y += constraints.parent.y;
+    constraints.y += constraints.parent.y
   }
 }
 
 set_width_constraint :: proc(constraints: ^UiConstraints, value: f32, type: UiConstraint) {
   switch (type) {
     case .FIXED:
-      constraints.width = value;
+      constraints.width = value
     case .RELATIVE:
       if (constraints.parent != nil) {
-        constraints.width = (value * constraints.parent.width);
+        constraints.width = (value * constraints.parent.width)
       } else {
-        constraints.width = (value * zephr_ctx.window.size.x);
+        constraints.width = (value * zephr_ctx.window.size.x)
       }
     case .RELATIVE_PIXELS:
-      constraints.width = zephr_ctx.window.size.x / zephr_ctx.screen_size.x * value;
+      constraints.width = zephr_ctx.window.size.x / zephr_ctx.screen_size.x * value
     case .ASPECT_RATIO:
-      constraints.width = constraints.height * value;
+      constraints.width = constraints.height * value
   }
 }
 
 set_height_constraint :: proc(constraints: ^UiConstraints, value: f32, type: UiConstraint) {
   switch (type) {
     case .FIXED:
-      constraints.height = value;
+      constraints.height = value
     case .RELATIVE:
       if (constraints.parent != nil) {
-        constraints.height = (value * constraints.parent.height);
+        constraints.height = (value * constraints.parent.height)
       } else {
-        constraints.height = (value * zephr_ctx.window.size.y);
+        constraints.height = (value * zephr_ctx.window.size.y)
       }
     case .RELATIVE_PIXELS:
-      constraints.height = zephr_ctx.window.size.y / zephr_ctx.screen_size.y * value;
+      constraints.height = zephr_ctx.window.size.y / zephr_ctx.screen_size.y * value
     case .ASPECT_RATIO:
-      constraints.height = constraints.width * value;
+      constraints.height = constraints.width * value
   }
 }
 
 set_rotation_constraint :: proc(constraints: ^UiConstraints, angle_d: f32) {
-  constraints.rotation = angle_d;
+  constraints.rotation = angle_d
 }
 
 @private
 apply_constraints :: proc(constraints: ^UiConstraints, pos: ^Vec2, size: ^Vec2) {
-  pos^ = Vec2{constraints.x, constraints.y};
-  size^ = Vec2{constraints.width, constraints.height};
+  pos^ = Vec2{constraints.x, constraints.y}
+  size^ = Vec2{constraints.width, constraints.height}
 }
 
 @private
 apply_alignment :: proc(align: Alignment, constraints: ^UiConstraints, size: Vec2, pos: ^Vec2) {
   // if we don't have a parent then we're a top level element and we should align against the window
-  parent_size := Vec2{zephr_ctx.window.size.x, zephr_ctx.window.size.y};
+  parent_size := Vec2{zephr_ctx.window.size.x, zephr_ctx.window.size.y}
   if (constraints.parent != nil) {
-    parent_size = Vec2{constraints.parent.width, constraints.parent.height};
+    parent_size = Vec2{constraints.parent.width, constraints.parent.height}
   }
 
   switch (align) {
     case .TOP_LEFT:
-      pos.x = pos.x;
-      pos.y = pos.y;
+      pos.x = pos.x
+      pos.y = pos.y
     case .TOP_CENTER:
-      pos.x += parent_size.x / 2 - size.x / 2;
-      pos.y = pos.y;
+      pos.x += parent_size.x / 2 - size.x / 2
+      pos.y = pos.y
     case .TOP_RIGHT:
-      pos.x += parent_size.x - size.x;
-      pos.y = pos.y;
+      pos.x += parent_size.x - size.x
+      pos.y = pos.y
     case .BOTTOM_LEFT:
-      pos.x = pos.x;
-      pos.y += parent_size.y - size.y;
+      pos.x = pos.x
+      pos.y += parent_size.y - size.y
     case .BOTTOM_CENTER:
-      pos.x += parent_size.x / 2 - size.x / 2;
-      pos.y += parent_size.y - size.y;
+      pos.x += parent_size.x / 2 - size.x / 2
+      pos.y += parent_size.y - size.y
     case .BOTTOM_RIGHT:
-      pos.x += parent_size.x - size.x;
-      pos.y += parent_size.y - size.y;
+      pos.x += parent_size.x - size.x
+      pos.y += parent_size.y - size.y
     case .LEFT_CENTER:
-      pos.x = pos.x;
-      pos.y += parent_size.y / 2 - size.y / 2;
+      pos.x = pos.x
+      pos.y += parent_size.y / 2 - size.y / 2
     case .RIGHT_CENTER:
-      pos.x += parent_size.x - size.x;
-      pos.y += parent_size.y / 2 - size.y / 2;
+      pos.x += parent_size.x - size.x
+      pos.y += parent_size.y / 2 - size.y / 2
     case .CENTER:
-      pos.x += parent_size.x / 2 - size.x / 2;
-      pos.y += parent_size.y / 2 - size.y / 2;
+      pos.x += parent_size.x / 2 - size.x / 2
+      pos.y += parent_size.y / 2 - size.y / 2
   }
 }
 
@@ -253,7 +260,7 @@ apply_alignment :: proc(align: Alignment, constraints: ^UiConstraints, size: Vec
 // TODO: make this handle rotated and scaled rects too
 inside_rect :: proc(rect: Rect, point: Vec2) -> bool {
   return point.x >= rect.pos.x && point.x <= rect.pos.x + rect.size.x &&
-         point.y >= rect.pos.y && point.y <= rect.pos.y + rect.size.y;
+         point.y >= rect.pos.y && point.y <= rect.pos.y + rect.size.y
 }
 
 draw_quad :: proc(constraints: ^UiConstraints, style: UiStyle) {
@@ -271,21 +278,21 @@ draw_quad :: proc(constraints: ^UiConstraints, style: UiStyle) {
   apply_alignment(style.align, constraints, rect.size, &rect.pos)
 
   // set the positions after applying alignment so children can use them
-  constraints.x = rect.pos.x;
-  constraints.y = rect.pos.y;
+  constraints.x = rect.pos.x
+  constraints.y = rect.pos.y
 
-  model := identity();
-  translate(&model, Vec3{-rect.size.x / 2, -rect.size.y / 2, 0});
-  scale(&model, Vec3{constraints.scale.x, constraints.scale.y, 1});
-  translate(&model, Vec3{rect.size.x / 2, rect.size.y / 2, 0});
+  model := identity()
+  translate(&model, Vec3{-rect.size.x / 2, -rect.size.y / 2, 0})
+  scale(&model, Vec3{constraints.scale.x, constraints.scale.y, 1})
+  translate(&model, Vec3{rect.size.x / 2, rect.size.y / 2, 0})
 
-  translate(&model, Vec3{-rect.size.x / 2, -rect.size.y / 2, 0});
-  rotate(&model, constraints.rotation, Vec3{0, 0, 1});
-  translate(&model, Vec3{rect.size.x / 2, rect.size.y / 2, 0});
+  translate(&model, Vec3{-rect.size.x / 2, -rect.size.y / 2, 0})
+  rotate(&model, constraints.rotation, Vec3{0, 0, 1})
+  translate(&model, Vec3{rect.size.x / 2, rect.size.y / 2, 0})
 
-  translate(&model, Vec3{rect.pos.x, rect.pos.y, 0});
+  translate(&model, Vec3{rect.pos.x, rect.pos.y, 0})
 
-  set_mat4f(ui_shader, "model", model);
+  set_mat4f(ui_shader, "model", model)
 
   gl.BindVertexArray(ui_vao)
 
@@ -299,112 +306,112 @@ draw_quad :: proc(constraints: ^UiConstraints, style: UiStyle) {
     {0,               0 + rect.size.y, 0.0, 1.0},
     {0 + rect.size.x, 0,               1.0, 0.0},
     {0 + rect.size.x, 0 + rect.size.y, 1.0, 1.0},
-  };
+  }
 
-  gl.BindBuffer(gl.ARRAY_BUFFER, ui_vbo);
-  gl.BufferSubData(gl.ARRAY_BUFFER, 0, size_of(vertices), raw_data(&vertices));
-  gl.BindBuffer(gl.ARRAY_BUFFER, 0);
+  gl.BindBuffer(gl.ARRAY_BUFFER, ui_vbo)
+  gl.BufferSubData(gl.ARRAY_BUFFER, 0, size_of(vertices), raw_data(&vertices))
+  gl.BindBuffer(gl.ARRAY_BUFFER, 0)
 
-  gl.DrawArrays(gl.TRIANGLES, 0, 6);
+  gl.DrawArrays(gl.TRIANGLES, 0, 6)
 
-  gl.BindVertexArray(0);
+  gl.BindVertexArray(0)
 }
 
 draw_circle :: proc(constraints: ^UiConstraints, style: UiStyle) {
-  radius: f32 = 0;
+  radius: f32 = 0
 
   if (constraints.width > constraints.height) {
-    radius = constraints.height / 2;
+    radius = constraints.height / 2
   } else {
-    radius = constraints.width / 2;
+    radius = constraints.width / 2
   }
 
-  new_style := style;
-  new_style.border_radius = radius;
+  new_style := style
+  new_style.border_radius = radius
 
-  draw_quad(constraints, new_style);
+  draw_quad(constraints, new_style)
 }
 
 draw_triangle :: proc(constraints: ^UiConstraints, style: UiStyle) {
-  use_shader(ui_shader);
+  use_shader(ui_shader)
 
-  set_vec4f(ui_shader, "aColor", cast(f32)style.bg_color.r / 255, cast(f32)style.bg_color.g / 255, cast(f32)style.bg_color.b / 255, cast(f32)style.bg_color.a / 255);
-  set_float(ui_shader, "borderRadius", 0);
+  set_vec4f(ui_shader, "aColor", cast(f32)style.bg_color.r / 255, cast(f32)style.bg_color.g / 255, cast(f32)style.bg_color.b / 255, cast(f32)style.bg_color.a / 255)
+  set_float(ui_shader, "borderRadius", 0)
   set_mat4f(ui_shader, "projection", zephr_ctx.projection)
 
   rect: Rect = ---
 
-  apply_constraints(constraints, &rect.pos, &rect.size);
-  apply_alignment(style.align, constraints, rect.size, &rect.pos);
+  apply_constraints(constraints, &rect.pos, &rect.size)
+  apply_alignment(style.align, constraints, rect.size, &rect.pos)
 
   // set the positions after applying alignment so children can use them
-  constraints.x = rect.pos.x;
-  constraints.y = rect.pos.y;
+  constraints.x = rect.pos.x
+  constraints.y = rect.pos.y
 
-  model := identity();
-  translate(&model, Vec3{-rect.size.x / 2, -rect.size.y / 2, 0});
-  scale(&model, Vec3{constraints.scale.x, constraints.scale.y, 1});
-  translate(&model, Vec3{rect.size.x / 2, rect.size.y / 2, 0});
+  model := identity()
+  translate(&model, Vec3{-rect.size.x / 2, -rect.size.y / 2, 0})
+  scale(&model, Vec3{constraints.scale.x, constraints.scale.y, 1})
+  translate(&model, Vec3{rect.size.x / 2, rect.size.y / 2, 0})
 
-  translate(&model, Vec3{-rect.size.x / 2, -rect.size.y / 2, 0});
-  rotate(&model, constraints.rotation, Vec3{0, 0, 1});
-  translate(&model, Vec3{rect.size.x / 2, rect.size.y / 2, 0});
+  translate(&model, Vec3{-rect.size.x / 2, -rect.size.y / 2, 0})
+  rotate(&model, constraints.rotation, Vec3{0, 0, 1})
+  translate(&model, Vec3{rect.size.x / 2, rect.size.y / 2, 0})
 
-  translate(&model, Vec3{rect.pos.x, rect.pos.y, 0});
+  translate(&model, Vec3{rect.pos.x, rect.pos.y, 0})
 
-  set_mat4f(ui_shader, "model", model);
+  set_mat4f(ui_shader, "model", model)
 
-  gl.BindVertexArray(ui_vao);
+  gl.BindVertexArray(ui_vao)
 
   vertices := [3][4]f32 {
     {0 + rect.size.x,     0,               0.0, 0.0},
     {0,                   0,               0.0, 0.0},
     {0 + rect.size.x / 2, 0 + rect.size.y, 0.0, 0.0},
-  };
+  }
 
-  gl.BindBuffer(gl.ARRAY_BUFFER, ui_vbo);
+  gl.BindBuffer(gl.ARRAY_BUFFER, ui_vbo)
   gl.BufferSubData(gl.ARRAY_BUFFER, 0, size_of(vertices), raw_data(&vertices))
-  gl.BindBuffer(gl.ARRAY_BUFFER, 0);
+  gl.BindBuffer(gl.ARRAY_BUFFER, 0)
 
-  gl.DrawArrays(gl.TRIANGLES, 0, 3);
+  gl.DrawArrays(gl.TRIANGLES, 0, 3)
 
-  gl.BindVertexArray(0);
+  gl.BindVertexArray(0)
 }
 
 draw_texture :: proc(constraints: ^UiConstraints, texture_id: TextureId, color: Color, radius: f32, align: Alignment) {
-  use_shader(ui_shader);
+  use_shader(ui_shader)
 
-  set_vec4f(ui_shader, "aColor", cast(f32)color.r / 255, cast(f32)color.g / 255, cast(f32)color.b / 255, cast(f32)color.a / 255);
-  set_float(ui_shader, "uiWidth", constraints.width);
-  set_float(ui_shader, "uiHeight", constraints.height);
-  set_float(ui_shader, "borderRadius", radius);
-  set_bool(ui_shader, "hasTexture", true);
+  set_vec4f(ui_shader, "aColor", cast(f32)color.r / 255, cast(f32)color.g / 255, cast(f32)color.b / 255, cast(f32)color.a / 255)
+  set_float(ui_shader, "uiWidth", constraints.width)
+  set_float(ui_shader, "uiHeight", constraints.height)
+  set_float(ui_shader, "borderRadius", radius)
+  set_bool(ui_shader, "hasTexture", true)
 
   set_mat4f(ui_shader, "projection", zephr_ctx.projection)
 
   rect: Rect = ---
 
-  apply_constraints(constraints, &rect.pos, &rect.size);
-  apply_alignment(align, constraints, rect.size, &rect.pos);
+  apply_constraints(constraints, &rect.pos, &rect.size)
+  apply_alignment(align, constraints, rect.size, &rect.pos)
 
   // set the positions after applying alignment so children can use them
-  constraints.x = rect.pos.x;
-  constraints.y = rect.pos.y;
+  constraints.x = rect.pos.x
+  constraints.y = rect.pos.y
 
-  model := identity();
-  translate(&model, Vec3{-rect.size.x / 2, -rect.size.y / 2, 0});
-  scale(&model, Vec3{constraints.scale.x, constraints.scale.y, 1});
-  translate(&model, Vec3{rect.size.x / 2, rect.size.y / 2, 0});
+  model := identity()
+  translate(&model, Vec3{-rect.size.x / 2, -rect.size.y / 2, 0})
+  scale(&model, Vec3{constraints.scale.x, constraints.scale.y, 1})
+  translate(&model, Vec3{rect.size.x / 2, rect.size.y / 2, 0})
 
-  translate(&model, Vec3{-rect.size.x / 2, -rect.size.y / 2, 0});
-  rotate(&model, constraints.rotation, Vec3{0, 0, 1});
-  translate(&model, Vec3{rect.size.x / 2, rect.size.y / 2, 0});
+  translate(&model, Vec3{-rect.size.x / 2, -rect.size.y / 2, 0})
+  rotate(&model, constraints.rotation, Vec3{0, 0, 1})
+  translate(&model, Vec3{rect.size.x / 2, rect.size.y / 2, 0})
 
-  translate(&model, Vec3{rect.pos.x, rect.pos.y, 0});
+  translate(&model, Vec3{rect.pos.x, rect.pos.y, 0})
 
   set_mat4f(ui_shader, "model", model)
 
-  gl.BindVertexArray(ui_vao);
+  gl.BindVertexArray(ui_vao)
 
   vertices := [6][4]f32 {
     // bottom left tri
@@ -416,19 +423,19 @@ draw_texture :: proc(constraints: ^UiConstraints, texture_id: TextureId, color: 
     {0,               0 + rect.size.y, 0.0, 1.0},
     {0 + rect.size.x, 0,               1.0, 0.0},
     {0 + rect.size.x, 0 + rect.size.y, 1.0, 1.0},
-  };
+  }
 
-  gl.BindBuffer(gl.ARRAY_BUFFER, ui_vbo);
+  gl.BindBuffer(gl.ARRAY_BUFFER, ui_vbo)
   gl.BufferSubData(gl.ARRAY_BUFFER, 0, size_of(vertices), raw_data(&vertices))
-  gl.BindBuffer(gl.ARRAY_BUFFER, 0);
+  gl.BindBuffer(gl.ARRAY_BUFFER, 0)
 
-  gl.ActiveTexture(gl.TEXTURE0);
-  gl.BindTexture(gl.TEXTURE_2D, texture_id);
+  gl.ActiveTexture(gl.TEXTURE0)
+  gl.BindTexture(gl.TEXTURE_2D, texture_id)
 
-  gl.DrawArrays(gl.TRIANGLES, 0, 6);
+  gl.DrawArrays(gl.TRIANGLES, 0, 6)
 
-  gl.BindVertexArray(0);
-  set_bool(ui_shader, "hasTexture", false);
+  gl.BindVertexArray(0)
+  set_bool(ui_shader, "hasTexture", false)
 }
 
 draw_button :: proc(constraints: ^UiConstraints, text: string, style: UiStyle, state: ButtonState, caller := #caller_location) -> bool {
@@ -440,75 +447,82 @@ draw_button :: proc(constraints: ^UiConstraints, text: string, style: UiStyle, s
   style := style
   rect: Rect = ---
 
-  apply_constraints(constraints, &rect.pos, &rect.size);
-  apply_alignment(style.align, constraints, rect.size, &rect.pos);
+  apply_constraints(constraints, &rect.pos, &rect.size)
+  apply_alignment(style.align, constraints, rect.size, &rect.pos)
 
-  is_hovered := inside_rect(rect, zephr_ctx.mouse.pos);
+  is_hovered := zephr_ctx.ui.hovered_element == hash
   is_held := zephr_ctx.ui.active_element == hash
-  left_mouse_pressed := zephr_ctx.mouse.pressed && zephr_ctx.mouse.button == .BUTTON_LEFT;
-  left_mouse_released := zephr_ctx.mouse.released && zephr_ctx.mouse.button == .BUTTON_LEFT;
-  clicked := false;
+  left_mouse_pressed := zephr_ctx.mouse.pressed && zephr_ctx.mouse.button == .BUTTON_LEFT
+  left_mouse_released := zephr_ctx.mouse.released && zephr_ctx.mouse.button == .BUTTON_LEFT
+  clicked := false
 
   if (zephr_ctx.ui.active_element == 0) {
     if (is_hovered && left_mouse_pressed) {
-      zephr_ctx.ui.active_element = hash;
+      zephr_ctx.ui.active_element = hash
     }
   } else if (zephr_ctx.ui.active_element == hash) {
     if (left_mouse_released) {
-      zephr_ctx.ui.active_element = 0;
+      zephr_ctx.ui.active_element = 0
 
       if (is_hovered) {
-        clicked = true;
+        clicked = true
       }
     }
   }
 
   if (is_hovered && state == .ACTIVE) {
-    set_cursor(Cursor.HAND);
+    set_cursor(Cursor.HAND)
 
     if (is_held) {
-      style.bg_color = mult_color(style.bg_color, 0.8);
-      draw_quad(constraints, style);
+      style.bg_color = mult_color(style.bg_color, 0.8)
+      draw_quad(constraints, style)
     } else {
-      style.bg_color = mult_color(style.bg_color, 0.9);
-      draw_quad(constraints, style);
+      style.bg_color = mult_color(style.bg_color, 0.9)
+      draw_quad(constraints, style)
     }
   } else if (state == .DISABLED) {
     if (is_hovered) {
-      set_cursor(Cursor.DISABLED);
+      set_cursor(Cursor.DISABLED)
     }
 
-    style.bg_color.a = 100;
-    style.fg_color.a = 100;
-    draw_quad(constraints, style);
+    style.bg_color.a = 100
+    style.fg_color.a = 100
+    draw_quad(constraints, style)
   } else {
-    draw_quad(constraints, style);
+    draw_quad(constraints, style)
   }
 
   if (text != "") {
     text_constraints := DEFAULT_UI_CONSTRAINTS
 
-    set_parent_constraint(&text_constraints, constraints);
-    set_x_constraint(&text_constraints, 0, .RELATIVE_PIXELS);
-    set_y_constraint(&text_constraints, 0, .RELATIVE_PIXELS);
-    set_width_constraint(&text_constraints, 1.0, .RELATIVE_PIXELS);
+    set_parent_constraint(&text_constraints, constraints)
+    set_x_constraint(&text_constraints, 0, .RELATIVE_PIXELS)
+    set_y_constraint(&text_constraints, 0, .RELATIVE_PIXELS)
+    set_width_constraint(&text_constraints, 1.0, .RELATIVE_PIXELS)
 
-    font_size := ((constraints.width) / (text_constraints.width * 0.1 * 65));
+    font_size := ((constraints.width) / (text_constraints.width * 0.1 * 65))
 
     // TODO: need to adjust the font size based on the text height
 
-    draw_text(text, cast(u32)font_size, text_constraints, style.fg_color, .CENTER);
+    draw_text(text, cast(u32)font_size, text_constraints, style.fg_color, .CENTER)
   }
+
+  element := UiElement{
+    id = hash,
+    rect = rect,
+  }
+
+  append(&zephr_ctx.ui.elements, element)
 
   if (clicked && state == .ACTIVE) {
-    return true;
+    return true
   }
 
-  return false;
+  return false
 }
 
 draw_icon_button :: proc(constraints: ^UiConstraints, icon_tex_id: TextureId, style: UiStyle, state: ButtonState, caller := #caller_location) -> bool {
-  assert(icon_tex_id != 0, "draw_icon_button() requires that you provide an icon texture");
+  assert(icon_tex_id != 0, "draw_icon_button() requires that you provide an icon texture")
 
   line := caller.line
   line_bytes := mem.byte_slice(&line, size_of(line))
@@ -518,64 +532,71 @@ draw_icon_button :: proc(constraints: ^UiConstraints, icon_tex_id: TextureId, st
   style := style
   rect: Rect = ---
 
-  apply_constraints(constraints, &rect.pos, &rect.size);
-  apply_alignment(style.align, constraints, rect.size, &rect.pos);
+  apply_constraints(constraints, &rect.pos, &rect.size)
+  apply_alignment(style.align, constraints, rect.size, &rect.pos)
 
-  is_held := zephr_ctx.ui.active_element == hash;
-  is_hovered := inside_rect(rect, zephr_ctx.mouse.pos);
-  left_mouse_pressed := zephr_ctx.mouse.pressed && zephr_ctx.mouse.button == .BUTTON_LEFT;
-  left_mouse_released := zephr_ctx.mouse.released && zephr_ctx.mouse.button == .BUTTON_LEFT;
-  clicked := false;
+  is_held := zephr_ctx.ui.active_element == hash
+  is_hovered := zephr_ctx.ui.hovered_element == hash
+  left_mouse_pressed := zephr_ctx.mouse.pressed && zephr_ctx.mouse.button == .BUTTON_LEFT
+  left_mouse_released := zephr_ctx.mouse.released && zephr_ctx.mouse.button == .BUTTON_LEFT
+  clicked := false
 
   if (zephr_ctx.ui.active_element == 0) {
     if (is_hovered && left_mouse_pressed) {
-      zephr_ctx.ui.active_element = hash;
+      zephr_ctx.ui.active_element = hash
     }
   } else if (zephr_ctx.ui.active_element == hash) {
     if (left_mouse_released) {
-      zephr_ctx.ui.active_element = 0;
+      zephr_ctx.ui.active_element = 0
 
       if (is_hovered) {
-        clicked = true;
+        clicked = true
       }
     }
   }
 
   if (is_hovered && state == .ACTIVE) {
-    set_cursor(.HAND);
+    set_cursor(.HAND)
 
     if (is_held) {
-      style.bg_color = mult_color(style.bg_color, 0.8);
-      style.fg_color = mult_color(style.fg_color, 0.8);
+      style.bg_color = mult_color(style.bg_color, 0.8)
+      style.fg_color = mult_color(style.fg_color, 0.8)
     } else {
-      style.bg_color = mult_color(style.bg_color, 0.9);
-      style.fg_color = mult_color(style.fg_color, 0.9);
+      style.bg_color = mult_color(style.bg_color, 0.9)
+      style.fg_color = mult_color(style.fg_color, 0.9)
     }
   } else if (state == .DISABLED) {
     if (is_hovered) {
-      set_cursor(.DISABLED);
+      set_cursor(.DISABLED)
     }
 
-    style.fg_color.a = 100;
-    style.bg_color.a = 100;
+    style.fg_color.a = 100
+    style.bg_color.a = 100
   }
 
-  draw_quad(constraints, style);
+  draw_quad(constraints, style)
 
   icon_constraints := DEFAULT_UI_CONSTRAINTS
 
-  set_parent_constraint(&icon_constraints, constraints);
-  set_x_constraint(&icon_constraints, 0, .RELATIVE_PIXELS);
-  set_y_constraint(&icon_constraints, 0, .RELATIVE_PIXELS);
-  set_width_constraint(&icon_constraints, constraints.width * 0.8, .FIXED);
-  set_height_constraint(&icon_constraints, constraints.height * 0.8, .FIXED);
-  draw_texture(&icon_constraints, icon_tex_id, style.fg_color, 0, .CENTER);
+  set_parent_constraint(&icon_constraints, constraints)
+  set_x_constraint(&icon_constraints, 0, .RELATIVE_PIXELS)
+  set_y_constraint(&icon_constraints, 0, .RELATIVE_PIXELS)
+  set_width_constraint(&icon_constraints, constraints.width * 0.8, .FIXED)
+  set_height_constraint(&icon_constraints, constraints.height * 0.8, .FIXED)
+  draw_texture(&icon_constraints, icon_tex_id, style.fg_color, 0, .CENTER)
 
   if (clicked && state == .ACTIVE) {
-    return true;
+    return true
   }
 
-  return false;
+  element := UiElement{
+    id = hash,
+    rect = rect
+  }
+
+  append(&zephr_ctx.ui.elements, element)
+
+  return false
 }
 
 @private
@@ -587,49 +608,49 @@ draw_color_picker_slider :: proc(constraints: ^UiConstraints, align: Alignment, 
 
   line := caller.line
   line_bytes := mem.byte_slice(&line, size_of(line))
-  hash := fnv_hash32(transmute([]byte)caller.file_path, cast(u32)len(caller.file_path), FNV_HASH32_INIT);
-  hash = fnv_hash32(line_bytes, size_of(caller.line), hash);
+  hash := fnv_hash32(transmute([]byte)caller.file_path, cast(u32)len(caller.file_path), FNV_HASH32_INIT)
+  hash = fnv_hash32(line_bytes, size_of(caller.line), hash)
 
-  use_shader(color_chooser_shader);
+  use_shader(color_chooser_shader)
 
-  set_bool(color_chooser_shader, "isSlider", true);
-  set_mat4f(color_chooser_shader, "projection", zephr_ctx.projection);
+  set_bool(color_chooser_shader, "isSlider", true)
+  set_mat4f(color_chooser_shader, "projection", zephr_ctx.projection)
 
   rect: Rect = ---
 
-  apply_constraints(constraints, &rect.pos, &rect.size);
-  apply_alignment(align, constraints, rect.size, &rect.pos);
+  apply_constraints(constraints, &rect.pos, &rect.size)
+  apply_alignment(align, constraints, rect.size, &rect.pos)
 
   // set the positions after applying alignment so children can use them
-  constraints.x = rect.pos.x;
-  constraints.y = rect.pos.y;
+  constraints.x = rect.pos.x
+  constraints.y = rect.pos.y
 
-  is_hovered := inside_rect(rect, zephr_ctx.mouse.pos);
-  left_mouse_pressed := zephr_ctx.mouse.pressed && zephr_ctx.mouse.button == .BUTTON_LEFT;
-  left_mouse_released := zephr_ctx.mouse.released && zephr_ctx.mouse.button == .BUTTON_LEFT;
+  is_hovered := zephr_ctx.ui.hovered_element == hash
+  left_mouse_pressed := zephr_ctx.mouse.pressed && zephr_ctx.mouse.button == .BUTTON_LEFT
+  left_mouse_released := zephr_ctx.mouse.released && zephr_ctx.mouse.button == .BUTTON_LEFT
 
   if (zephr_ctx.ui.active_element == 0) {
     if (is_hovered && left_mouse_pressed) {
-      zephr_ctx.ui.active_element = hash;
-      dragging = true;
+      zephr_ctx.ui.active_element = hash
+      dragging = true
     }
   } else if (zephr_ctx.ui.active_element == hash) {
     if (left_mouse_released) {
-      zephr_ctx.ui.active_element = 0;
-      dragging = false;
+      zephr_ctx.ui.active_element = 0
+      dragging = false
     }
   }
 
   if (dragging) {
-    slider_selection = clamp((zephr_ctx.mouse.pos.y - constraints.y) / constraints.height, 0, 1);
+    slider_selection = clamp((zephr_ctx.mouse.pos.y - constraints.y) / constraints.height, 0, 1)
   }
 
-  model := identity();
+  model := identity()
   translate(&model, Vec3{rect.pos.x, rect.pos.y, 0})
 
-  set_mat4f(color_chooser_shader, "model", model);
+  set_mat4f(color_chooser_shader, "model", model)
 
-  gl.BindVertexArray(ui_vao);
+  gl.BindVertexArray(ui_vao)
 
   vertices := [6][4]f32 {
     // bottom left tri
@@ -641,98 +662,105 @@ draw_color_picker_slider :: proc(constraints: ^UiConstraints, align: Alignment, 
     {0,               0 + rect.size.y, 0.0, 1.0},
     {0 + rect.size.x, 0,               1.0, 0.0},
     {0 + rect.size.x, 0 + rect.size.y, 1.0, 1.0},
-  };
+  }
 
-  gl.BindBuffer(gl.ARRAY_BUFFER, ui_vbo);
+  gl.BindBuffer(gl.ARRAY_BUFFER, ui_vbo)
   gl.BufferSubData(gl.ARRAY_BUFFER, 0, size_of(vertices), raw_data(&vertices))
-  gl.BindBuffer(gl.ARRAY_BUFFER, 0);
+  gl.BindBuffer(gl.ARRAY_BUFFER, 0)
 
-  gl.DrawArrays(gl.TRIANGLES, 0, 6);
+  gl.DrawArrays(gl.TRIANGLES, 0, 6)
 
-  gl.BindVertexArray(0);
-  set_bool(color_chooser_shader, "isSlider", false);
+  gl.BindVertexArray(0)
+  set_bool(color_chooser_shader, "isSlider", false)
 
   // draw the selection
   triangle_con := DEFAULT_UI_CONSTRAINTS
-  set_parent_constraint(&triangle_con, constraints);
-  set_x_constraint(&triangle_con, -11, .RELATIVE_PIXELS);
-  set_y_constraint(&triangle_con, slider_selection, .RELATIVE);
-  set_rotation_constraint(&triangle_con, -90);
-  set_width_constraint(&triangle_con, 14, .RELATIVE_PIXELS);
-  set_height_constraint(&triangle_con, 0.5, .ASPECT_RATIO);
-  triangle_con.y += -(triangle_con.height / 2);
+  set_parent_constraint(&triangle_con, constraints)
+  set_x_constraint(&triangle_con, -11, .RELATIVE_PIXELS)
+  set_y_constraint(&triangle_con, slider_selection, .RELATIVE)
+  set_rotation_constraint(&triangle_con, -90)
+  set_width_constraint(&triangle_con, 14, .RELATIVE_PIXELS)
+  set_height_constraint(&triangle_con, 0.5, .ASPECT_RATIO)
+  triangle_con.y += -(triangle_con.height / 2)
   tri_style := UiStyle {
     bg_color = COLOR_BLACK,
     border_radius = 0,
     align = .TOP_LEFT,
-  };
-  draw_triangle(&triangle_con, tri_style);
+  }
+  draw_triangle(&triangle_con, tri_style)
 
-  set_x_constraint(&triangle_con, 1, .RELATIVE);
-  triangle_con.x -= triangle_con.height / 2;
-  set_rotation_constraint(&triangle_con, 90);
-  draw_triangle(&triangle_con, tri_style);
+  set_x_constraint(&triangle_con, 1, .RELATIVE)
+  triangle_con.x -= triangle_con.height / 2
+  set_rotation_constraint(&triangle_con, 90)
+  draw_triangle(&triangle_con, tri_style)
 
-  return slider_selection;
+  element := UiElement{
+    id = hash,
+    rect = rect
+  }
+
+  append(&zephr_ctx.ui.elements, element)
+
+  return slider_selection
 }
 
 @private
 draw_color_picker_canvas :: proc(constraints: ^UiConstraints, slider_percentage: f32, align: Alignment, caller := #caller_location) -> Color {
   @static
-  dragging := false;
+  dragging := false
   @static
-  canvas_pos := Vec2{0, 0};
+  canvas_pos := Vec2{0, 0}
 
   line := caller.line
   line_bytes := mem.byte_slice(&line, size_of(line))
-  hash := fnv_hash32(transmute([]byte)caller.file_path, cast(u32)len(caller.file_path), FNV_HASH32_INIT);
-  hash = fnv_hash32(line_bytes, size_of(caller.line), hash);
+  hash := fnv_hash32(transmute([]byte)caller.file_path, cast(u32)len(caller.file_path), FNV_HASH32_INIT)
+  hash = fnv_hash32(line_bytes, size_of(caller.line), hash)
 
-  use_shader(color_chooser_shader);
+  use_shader(color_chooser_shader)
 
-  set_bool(color_chooser_shader, "isSlider", false);
-  set_float(color_chooser_shader, "sliderPercentage", slider_percentage);
-  set_mat4f(color_chooser_shader, "projection", zephr_ctx.projection);
+  set_bool(color_chooser_shader, "isSlider", false)
+  set_float(color_chooser_shader, "sliderPercentage", slider_percentage)
+  set_mat4f(color_chooser_shader, "projection", zephr_ctx.projection)
 
   rect: Rect = ---
 
-  apply_constraints(constraints, &rect.pos, &rect.size);
-  apply_alignment(align, constraints, rect.size, &rect.pos);
+  apply_constraints(constraints, &rect.pos, &rect.size)
+  apply_alignment(align, constraints, rect.size, &rect.pos)
 
   // set the positions after applying alignment so children can use them
-  constraints.x = rect.pos.x;
-  constraints.y = rect.pos.y;
+  constraints.x = rect.pos.x
+  constraints.y = rect.pos.y
 
-  is_hovered := inside_rect(rect, zephr_ctx.mouse.pos);
-  left_mouse_pressed := zephr_ctx.mouse.pressed && zephr_ctx.mouse.button == .BUTTON_LEFT;
-  left_mouse_released := zephr_ctx.mouse.released && zephr_ctx.mouse.button == .BUTTON_LEFT;
+  is_hovered := zephr_ctx.ui.hovered_element == hash
+  left_mouse_pressed := zephr_ctx.mouse.pressed && zephr_ctx.mouse.button == .BUTTON_LEFT
+  left_mouse_released := zephr_ctx.mouse.released && zephr_ctx.mouse.button == .BUTTON_LEFT
 
   if (zephr_ctx.ui.active_element == 0) {
     if (is_hovered && left_mouse_pressed) {
-      zephr_ctx.ui.active_element = hash;
-      dragging = true;
+      zephr_ctx.ui.active_element = hash
+      dragging = true
     }
   } else if (zephr_ctx.ui.active_element == hash) {
     if (left_mouse_released) {
-      zephr_ctx.ui.active_element = 0;
-      dragging = false;
+      zephr_ctx.ui.active_element = 0
+      dragging = false
     }
   }
 
   if (dragging) {
-    x := (zephr_ctx.mouse.pos.x - constraints.x) / constraints.width;
-    y := (zephr_ctx.mouse.pos.y - constraints.y) / constraints.height;
+    x := (zephr_ctx.mouse.pos.x - constraints.x) / constraints.width
+    y := (zephr_ctx.mouse.pos.y - constraints.y) / constraints.height
 
-    canvas_pos.x = clamp(x, 0, 1);
-    canvas_pos.y = clamp(y, 0, 1);
+    canvas_pos.x = clamp(x, 0, 1)
+    canvas_pos.y = clamp(y, 0, 1)
   }
 
-  model := identity();
-  translate(&model, Vec3{rect.pos.x, rect.pos.y, 0});
+  model := identity()
+  translate(&model, Vec3{rect.pos.x, rect.pos.y, 0})
 
-  set_mat4f(color_chooser_shader, "model", model);
+  set_mat4f(color_chooser_shader, "model", model)
 
-  gl.BindVertexArray(ui_vao);
+  gl.BindVertexArray(ui_vao)
 
   vertices := [6][4]f32 {
     // bottom left tri
@@ -744,88 +772,109 @@ draw_color_picker_canvas :: proc(constraints: ^UiConstraints, slider_percentage:
     {0,               0 + rect.size.y, 0.0, 1.0},
     {0 + rect.size.x, 0,                    1.0, 0.0},
     {0 + rect.size.x, 0 + rect.size.y, 1.0, 1.0},
-  };
+  }
 
-  gl.BindBuffer(gl.ARRAY_BUFFER, ui_vbo);
+  gl.BindBuffer(gl.ARRAY_BUFFER, ui_vbo)
   gl.BufferSubData(gl.ARRAY_BUFFER, 0, size_of(vertices), raw_data(&vertices))
-  gl.BindBuffer(gl.ARRAY_BUFFER, 0);
+  gl.BindBuffer(gl.ARRAY_BUFFER, 0)
 
-  gl.DrawArrays(gl.TRIANGLES, 0, 6);
+  gl.DrawArrays(gl.TRIANGLES, 0, 6)
 
-  gl.BindVertexArray(0);
+  gl.BindVertexArray(0)
 
-  selected_color := hsv2rgb(slider_percentage * 360, canvas_pos.x, 1.0 - canvas_pos.y);
+  selected_color := hsv2rgb(slider_percentage * 360, canvas_pos.x, 1.0 - canvas_pos.y)
 
   // draw the selection
   triangle_con := DEFAULT_UI_CONSTRAINTS
-  set_parent_constraint(&triangle_con, constraints);
-  set_x_constraint(&triangle_con, canvas_pos.x, .RELATIVE);
-  set_y_constraint(&triangle_con, canvas_pos.y, .RELATIVE);
-  set_width_constraint(&triangle_con, 14, .RELATIVE_PIXELS);
-  set_height_constraint(&triangle_con, 0.5, .ASPECT_RATIO);
-  triangle_con.x -= triangle_con.height;
-  triangle_con.y -= triangle_con.height + triangle_con.height / 2 + triangle_con.width / 2;
-  set_rotation_constraint(&triangle_con, 0);
+  set_parent_constraint(&triangle_con, constraints)
+  set_x_constraint(&triangle_con, canvas_pos.x, .RELATIVE)
+  set_y_constraint(&triangle_con, canvas_pos.y, .RELATIVE)
+  set_width_constraint(&triangle_con, 14, .RELATIVE_PIXELS)
+  set_height_constraint(&triangle_con, 0.5, .ASPECT_RATIO)
+  triangle_con.x -= triangle_con.height
+  triangle_con.y -= triangle_con.height + triangle_con.height / 2 + triangle_con.width / 2
+  set_rotation_constraint(&triangle_con, 0)
   tri_style := UiStyle {
     bg_color = determine_color_contrast(selected_color),
     border_radius = 0,
     align = .TOP_LEFT,
-  };
-  draw_triangle(&triangle_con, tri_style);
+  }
+  draw_triangle(&triangle_con, tri_style)
 
-  triangle_con.x += triangle_con.height * 2;
-  triangle_con.y += triangle_con.height * 2;
-  set_rotation_constraint(&triangle_con, 90);
-  draw_triangle(&triangle_con, tri_style);
+  triangle_con.x += triangle_con.height * 2
+  triangle_con.y += triangle_con.height * 2
+  set_rotation_constraint(&triangle_con, 90)
+  draw_triangle(&triangle_con, tri_style)
 
-  triangle_con.x -= triangle_con.height * 2;
-  triangle_con.y += triangle_con.height * 2;
-  set_rotation_constraint(&triangle_con, 180);
-  draw_triangle(&triangle_con, tri_style);
+  triangle_con.x -= triangle_con.height * 2
+  triangle_con.y += triangle_con.height * 2
+  set_rotation_constraint(&triangle_con, 180)
+  draw_triangle(&triangle_con, tri_style)
 
-  triangle_con.x -= triangle_con.height * 2;
-  triangle_con.y -= triangle_con.height * 2;
-  set_rotation_constraint(&triangle_con, 270);
-  draw_triangle(&triangle_con, tri_style);
+  triangle_con.x -= triangle_con.height * 2
+  triangle_con.y -= triangle_con.height * 2
+  set_rotation_constraint(&triangle_con, 270)
+  draw_triangle(&triangle_con, tri_style)
 
-  return selected_color;
+  element := UiElement{
+    id = hash,
+    rect = rect
+  }
+
+  append(&zephr_ctx.ui.elements, element)
+
+  return selected_color
 }
 
-// TODO: consume mouse events on the popup
 @private
 draw_color_picker_popup :: proc(picker_button_con: ^UiConstraints) {
+  id := 023467
+  id_bytes := mem.byte_slice(&id, size_of(id))
+  hash := fnv_hash32(id_bytes, size_of(id), zephr_ctx.ui.popup_parent_hash)
   popup_con := DEFAULT_UI_CONSTRAINTS
-  set_parent_constraint(&popup_con, picker_button_con);
-  set_x_constraint(&popup_con, 0, .FIXED);
-  set_y_constraint(&popup_con, 1.4, .RELATIVE);
-  set_width_constraint(&popup_con, 450, .RELATIVE_PIXELS);
-  set_height_constraint(&popup_con, 480, .RELATIVE_PIXELS);
+  set_parent_constraint(&popup_con, picker_button_con)
+  set_x_constraint(&popup_con, 0, .FIXED)
+  set_y_constraint(&popup_con, 1.4, .RELATIVE)
+  set_width_constraint(&popup_con, 450, .RELATIVE_PIXELS)
+  set_height_constraint(&popup_con, 480, .RELATIVE_PIXELS)
   popup_style := UiStyle {
     bg_color = mult_color(COLOR_WHITE, 0.94),
     border_radius = popup_con.width * 0.02,
     align = .TOP_LEFT,
-  };
-  draw_quad(&popup_con, popup_style);
+  }
+  draw_quad(&popup_con, popup_style)
+
+  rect := Rect {
+    {popup_con.x, popup_con.y},
+    {popup_con.width, popup_con.height},
+  }
+
+  element := UiElement{
+    id = hash,
+    rect = rect
+  }
+
+  append(&zephr_ctx.ui.elements, element)
 
   color_slider_con := DEFAULT_UI_CONSTRAINTS
-  set_parent_constraint(&color_slider_con, &popup_con);
-  set_x_constraint(&color_slider_con, -0.04, .RELATIVE);
-  set_y_constraint(&color_slider_con, 0.05, .RELATIVE);
-  set_height_constraint(&color_slider_con, 400 * 0.9, .RELATIVE_PIXELS);
-  set_width_constraint(&color_slider_con, 0.1, .ASPECT_RATIO);
-  slider_selection := draw_color_picker_slider(&color_slider_con, .TOP_RIGHT);
+  set_parent_constraint(&color_slider_con, &popup_con)
+  set_x_constraint(&color_slider_con, -0.04, .RELATIVE)
+  set_y_constraint(&color_slider_con, 0.05, .RELATIVE)
+  set_height_constraint(&color_slider_con, 400 * 0.9, .RELATIVE_PIXELS)
+  set_width_constraint(&color_slider_con, 0.1, .ASPECT_RATIO)
+  slider_selection := draw_color_picker_slider(&color_slider_con, .TOP_RIGHT)
 
-  set_x_constraint(&color_slider_con, 0.04, .RELATIVE);
-  set_y_constraint(&color_slider_con, 0.05, .RELATIVE);
-  set_width_constraint(&color_slider_con, popup_con.width * 0.8, .FIXED);
-  selected_color := draw_color_picker_canvas(&color_slider_con, slider_selection, .TOP_LEFT);
+  set_x_constraint(&color_slider_con, 0.04, .RELATIVE)
+  set_y_constraint(&color_slider_con, 0.05, .RELATIVE)
+  set_width_constraint(&color_slider_con, popup_con.width * 0.8, .FIXED)
+  selected_color := draw_color_picker_canvas(&color_slider_con, slider_selection, .TOP_LEFT)
 
   button_con := DEFAULT_UI_CONSTRAINTS
-  set_parent_constraint(&button_con, &popup_con);
-  set_x_constraint(&button_con, 0.04, .RELATIVE);
-  set_y_constraint(&button_con, -0.05, .RELATIVE);
-  set_width_constraint(&button_con, 0.43, .RELATIVE);
-  set_height_constraint(&button_con, 0.3, .ASPECT_RATIO);
+  set_parent_constraint(&button_con, &popup_con)
+  set_x_constraint(&button_con, 0.04, .RELATIVE)
+  set_y_constraint(&button_con, -0.05, .RELATIVE)
+  set_width_constraint(&button_con, 0.43, .RELATIVE)
+  set_height_constraint(&button_con, 0.3, .ASPECT_RATIO)
   button_style := UiStyle {
     bg_color = zephr_ctx.ui.popup_revert_color^,
     fg_color = determine_color_contrast(zephr_ctx.ui.popup_revert_color^),
@@ -833,27 +882,22 @@ draw_color_picker_popup :: proc(picker_button_con: ^UiConstraints) {
     align = .BOTTOM_LEFT,
   }
   if (draw_button(&button_con, "Revert", button_style, .ACTIVE)) {
-    zephr_ctx.ui.popup_open = false;
-    zephr_ctx.ui.popup_parent_hash = 0;
+    zephr_ctx.ui.popup_open = false
+    zephr_ctx.ui.popup_parent_hash = 0
   }
 
-  button_style.align = .BOTTOM_RIGHT;
-  button_style.fg_color = determine_color_contrast(selected_color);
-  set_x_constraint(&button_con, -0.04, .RELATIVE);
-  set_y_constraint(&button_con, -0.05, .RELATIVE);
-  button_style.bg_color = selected_color;
+  button_style.align = .BOTTOM_RIGHT
+  button_style.fg_color = determine_color_contrast(selected_color)
+  set_x_constraint(&button_con, -0.04, .RELATIVE)
+  set_y_constraint(&button_con, -0.05, .RELATIVE)
+  button_style.bg_color = selected_color
   if (draw_button(&button_con, "Apply", button_style, .ACTIVE)) {
-    zephr_ctx.ui.popup_revert_color^ = selected_color;
-    zephr_ctx.ui.popup_open = false;
-    zephr_ctx.ui.popup_parent_hash = 0;
+    zephr_ctx.ui.popup_revert_color^ = selected_color
+    zephr_ctx.ui.popup_open = false
+    zephr_ctx.ui.popup_parent_hash = 0
   }
 
-  rect := Rect {
-    {popup_con.x, popup_con.y},
-    {popup_con.width, popup_con.height},
-  };
-
-  zephr_ctx.ui.popup_rect = rect;
+  zephr_ctx.ui.popup_rect = rect
 }
 
 draw_color_picker :: proc(constraints: ^UiConstraints, color: ^Color, align: Alignment, state: ButtonState, id: u32 = 0, caller := #caller_location) {
@@ -861,78 +905,79 @@ draw_color_picker :: proc(constraints: ^UiConstraints, color: ^Color, align: Ali
   line_bytes := mem.byte_slice(&line, size_of(line))
   id := id
   id_bytes := mem.byte_slice(&id, size_of(id))
-  hash := fnv_hash32(id_bytes, size_of(id), FNV_HASH32_INIT);
-  hash = fnv_hash32(transmute([]byte)caller.file_path, cast(u32)len(caller.file_path), hash);
-  hash = fnv_hash32(line_bytes, size_of(line), hash);
+  hash := fnv_hash32(id_bytes, size_of(id), FNV_HASH32_INIT)
+  hash = fnv_hash32(transmute([]byte)caller.file_path, cast(u32)len(caller.file_path), hash)
+  hash = fnv_hash32(line_bytes, size_of(line), hash)
 
   rect: Rect = ---
-  display_color := color^;
+  display_color := color^
 
-  con := constraints^;
+  con := constraints^
 
-  apply_constraints(&con, &rect.pos, &rect.size);
-  apply_alignment(align, &con, rect.size, &rect.pos);
+  apply_constraints(&con, &rect.pos, &rect.size)
+  apply_alignment(align, &con, rect.size, &rect.pos)
 
   is_held := zephr_ctx.ui.active_element == hash
-  is_hovered := inside_rect(rect, zephr_ctx.mouse.pos);
-  left_mouse_pressed := zephr_ctx.mouse.pressed && zephr_ctx.mouse.button == .BUTTON_LEFT;
-  left_mouse_released := zephr_ctx.mouse.released && zephr_ctx.mouse.button == .BUTTON_LEFT;
-  clicked := false;
+  is_hovered := zephr_ctx.ui.hovered_element == hash
+  left_mouse_pressed := zephr_ctx.mouse.pressed && zephr_ctx.mouse.button == .BUTTON_LEFT
+  left_mouse_released := zephr_ctx.mouse.released && zephr_ctx.mouse.button == .BUTTON_LEFT
+  clicked := false
 
   if (zephr_ctx.ui.active_element == 0) {
     if (is_hovered && left_mouse_pressed) {
-      zephr_ctx.ui.active_element = hash;
+      zephr_ctx.ui.active_element = hash
     }
   } else if (zephr_ctx.ui.active_element == hash) {
     if (left_mouse_released) {
-      zephr_ctx.ui.active_element = 0;
+      zephr_ctx.ui.active_element = 0
 
       if (is_hovered) {
-        clicked = true;
+        clicked = true
       }
     }
   }
 
   if (is_hovered && state == .ACTIVE) {
-    set_cursor(.HAND);
-    con.scale.y *= 1.08;
-    con.scale.x *= 1.08;
+    set_cursor(.HAND)
+    con.scale.y *= 1.08
+    con.scale.x *= 1.08
 
     if (is_held) {
-      display_color = mult_color(display_color, 0.8);
+      display_color = mult_color(display_color, 0.8)
     } else {
-      display_color = mult_color(display_color, 0.9);
+      display_color = mult_color(display_color, 0.9)
     }
   } else if (state == .DISABLED) {
     if (is_hovered) {
-      set_cursor(.DISABLED);
+      set_cursor(.DISABLED)
     }
 
-    display_color.a = 100;
+    display_color.a = 100
   }
 
   style := UiStyle {
     bg_color = display_color,
     border_radius = con.width * 0.08,
     align = align,
-  };
-  draw_quad(&con, style);
+  }
+  draw_quad(&con, style)
 
   if (clicked && state == .ACTIVE) {
-    zephr_ctx.ui.popup_open = true;
-    zephr_ctx.ui.popup_parent_constraints = con;
-    zephr_ctx.ui.popup_revert_color = color;
-    zephr_ctx.ui.popup_parent_hash = hash;
+    zephr_ctx.ui.popup_open = true
+    zephr_ctx.ui.popup_parent_constraints = con
+    zephr_ctx.ui.popup_revert_color = color
+    zephr_ctx.ui.popup_parent_hash = hash
   }
 
   if (zephr_ctx.ui.popup_parent_hash == hash) {
-    zephr_ctx.ui.popup_open = true;
-    zephr_ctx.ui.popup_parent_constraints = con;
+    zephr_ctx.ui.popup_open = true
+    zephr_ctx.ui.popup_parent_constraints = con
   }
 
-  /* if (is_hovered && state == BUTTON_STATE_ACTIVE && zephr_ctx->mouse.released && zephr_ctx->mouse.button == ZEPHR_MOUSE_BUTTON_LEFT) { */
-  /*   return true; */
-  /* } */
+  element := UiElement{
+    rect = rect,
+    id = hash
+  }
 
-  /* return false; */
+  append(&zephr_ctx.ui.elements, element)
 }

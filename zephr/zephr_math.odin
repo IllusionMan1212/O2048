@@ -12,16 +12,16 @@ Mat4 :: matrix[4, 4]f32
 Color :: struct { r, g, b, a: u8 }
 
 orthographic_projection_2d :: proc(left, right, bottom, top: f32) -> Mat4 {
-  result := identity();
+  result := identity()
 
-  result[0][0] = 2 / (right - left);
-  result[3][0] = -(right + left) / (right - left);
-  result[1][1] = 2 / (top - bottom);
-  result[3][1] = -(top + bottom) / (top - bottom);
-  result[2][2] = -1;
-  result[3][3] = 1;
+  result[0][0] = 2 / (right - left)
+  result[3][0] = -(right + left) / (right - left)
+  result[1][1] = 2 / (top - bottom)
+  result[3][1] = -(top + bottom) / (top - bottom)
+  result[2][2] = -1
+  result[3][3] = 1
 
-  return result;
+  return result
 }
 
 identity :: proc() -> Mat4 {
@@ -83,9 +83,9 @@ mult_color :: proc(color: Color, scalar: f32) -> Color {
 }
 
 hsv2rgb :: proc(h: f32, s: f32, v: f32) -> Color {
-  c := v * s;
-  x := (c * (1 - abs(math.mod(h / 60.0, 2) - 1)));
-  m := v - c;
+  c := v * s
+  x := (c * (1 - abs(math.mod(h / 60.0, 2) - 1)))
+  m := v - c
 
   r, g, b: f32
 
@@ -112,30 +112,30 @@ hsv2rgb :: proc(h: f32, s: f32, v: f32) -> Color {
   } else {
     r = c
     g = 0
-    b = x;
+    b = x
   }
 
-  return (Color){(u8)((r + m) * 255), (u8)((g + m) * 255), (u8)((b + m) * 255), 255};
+  return (Color){(u8)((r + m) * 255), (u8)((g + m) * 255), (u8)((b + m) * 255), 255}
 }
 
 determine_color_contrast :: proc(bg: Color) -> Color {
-  white_contrast := get_contrast(bg, COLOR_WHITE);
-  black_contrast := get_contrast(bg, COLOR_BLACK);
+  white_contrast := get_contrast(bg, COLOR_WHITE)
+  black_contrast := get_contrast(bg, COLOR_BLACK)
 
-  return white_contrast > black_contrast ? COLOR_WHITE : COLOR_BLACK;
+  return white_contrast > black_contrast ? COLOR_WHITE : COLOR_BLACK
 }
 
 @private
 get_srgb :: proc(component: f32) -> f32 {
   return (component / 255 <= 0.03928
       ? component / 255 / 12.92
-      : math.pow((component / 255 + 0.055) / 1.055, 2.4));
+      : math.pow((component / 255 + 0.055) / 1.055, 2.4))
 }
 
 get_luminance :: proc(color: Color) -> f32 {
   return ((0.2126 * get_srgb(cast(f32)color.r)) +
   (0.7152 * get_srgb(cast(f32)color.g)) +
-  (0.0722 * get_srgb(cast(f32)color.b))) / 255;
+  (0.0722 * get_srgb(cast(f32)color.b))) / 255
 }
 
 @private
@@ -143,5 +143,5 @@ get_contrast :: proc(fg: Color, bg: Color) -> f32 {
   l1 := get_luminance(fg)
   l2 := get_luminance(bg)
 
-  return (max(l1, l2) + 0.05) / (min(l1, l2) + 0.05);
+  return (max(l1, l2) + 0.05) / (min(l1, l2) + 0.05)
 }

@@ -6,40 +6,40 @@ import stb "vendor:stb/image"
 TextureId :: u32
 
 load_texture :: proc(path: cstring) -> TextureId {
-  texture_id: TextureId;
+  texture_id: TextureId
   width, height, channels: i32
   data := stb.load(path, &width, &height, &channels, 4) // RGBA
   defer stb.image_free(data)
 
-  format := gl.RGBA;
+  format := gl.RGBA
 
   switch (channels) {
     case 1:
-      format = gl.RED;
-      break;
+      format = gl.RED
+      break
     case 2:
-      format = gl.RG;
-      break;
+      format = gl.RG
+      break
     case 3:
-      format = gl.RGB;
-      break;
+      format = gl.RGB
+      break
     case 4:
-      format = gl.RGBA;
-      break;
+      format = gl.RGBA
+      break
   }
 
-  gl.GenTextures(1, &texture_id);
-  gl.BindTexture(gl.TEXTURE_2D, texture_id);
+  gl.GenTextures(1, &texture_id)
+  gl.BindTexture(gl.TEXTURE_2D, texture_id)
 
-  gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-  gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+  gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
+  gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
 
-  gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-  gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
+  gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
 
-  gl.TexImage2D(gl.TEXTURE_2D, 0, cast(i32)format, width, height, 0, cast(u32)format, gl.UNSIGNED_BYTE, data);
+  gl.TexImage2D(gl.TEXTURE_2D, 0, cast(i32)format, width, height, 0, cast(u32)format, gl.UNSIGNED_BYTE, data)
 
-  gl.GenerateMipmap(gl.TEXTURE_2D);
+  gl.GenerateMipmap(gl.TEXTURE_2D)
 
-  return texture_id;
+  return texture_id
 }
