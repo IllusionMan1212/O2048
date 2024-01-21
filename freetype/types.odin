@@ -1,37 +1,46 @@
+// based on system packaged freetype 2.11.1 on Ubuntu 22.04
+// @INCOMPLETE
+
 package freetype
 
-FT_Error :: i32
+import "core:c"
+
+FT_Error :: c.int
 @private
-FT_Short  :: i16
+FT_Short  :: c.short
 @private
-FT_UShort  :: u16
+FT_UShort  :: c.ushort
 @private
-FT_Int  :: i32
+FT_Int  :: c.int
 @private
-FT_UInt  :: u32
+FT_UInt  :: c.uint
 @private
-FT_Long  :: i64
+FT_Long  :: c.long
 @private
-FT_ULong :: u64
+FT_ULong :: c.ulong
 @private
-FT_String :: u8
+FT_String :: c.char
+@private
+FT_UInt32 :: c.uint
 
 @private
-FT_Pos :: i64
+FT_Pos :: c.long
 @private
-FT_Fixed :: i64
+FT_Fixed :: c.long
 @private
-FT_SubGlyph :: ^u32 // internal object
+FT_SubGlyph :: rawptr // internal object
 @private
-FT_Slot_Internal :: ^u32 // opaque handle to internal slot structure
+FT_Slot_Internal :: rawptr // opaque handle to internal slot structure
 @private
-FT_Size_Internal :: ^u32 // opaque handle to internal size structure
+FT_Size_Internal :: rawptr // opaque handle to internal size structure
 @private
-FT_Driver :: ^u32 // a handle to a given FreeType font driver object
+FT_Driver :: rawptr // a handle to a given FreeType font driver object
 @private
-FT_Memory :: ^u32 // a handle to a given memory manager object
+FT_Memory :: rawptr // a handle to a given memory manager object
+@private
+FT_Face_Internal :: rawptr
 
-Library :: ^u32 // handle to a library object
+Library :: rawptr // handle to a library object
 
 @private
 FT_Render_Mode_ :: enum {
@@ -45,6 +54,7 @@ FT_Render_Mode_ :: enum {
   MAX
 }
 
+@private
 LoadFlags :: enum {
   DEFAULT                     = 0x0,
   NO_SCALE                    = 1 << 0,
@@ -78,9 +88,50 @@ LoadFlags :: enum {
 }
 
 @private
-FT_Encoding :: enum {
-  // TODO: fill this out
+OutlineFlags :: enum {
+  NONE             = 0x0,
+  OWNER            = 0x1,
+  EVEN_ODD_FILL    = 0x2,
+  REVERSE_FILL     = 0x4,
+  IGNORE_DROPOUTS  = 0x8,
+  SMART_DROPOUTS   = 0x10,
+  INCLUDE_STUBS    = 0x20,
+  OVERLAP          = 0x40,
+
+  HIGH_PRECISION   = 0x100,
+  SINGLE_PASS      = 0x200,
 }
+
+@private
+FT_Encoding :: enum u32 {
+  NONE = 0,
+  MS_SYMBOL = ('s' << 24) | ('y' << 16) | ('m' << 8) | 'b',
+  UNICODE   = ('u' << 24) | ('n' << 16) | ('i' << 8) | 'c',
+  SJIS      = ('s' << 24) | ('j' << 16) | ('i' << 8) | 's',
+  PRC       = ('g' << 24) | ('b' << 16) | (' ' << 8) | ' ',
+  BIG5      = ('b' << 24) | ('i' << 16) | ('g' << 8) | '5',
+  WANSUNG   = ('w' << 24) | ('a' << 16) | ('n' << 8) | 's',
+  JOHAB     = ('j' << 24) | ('o' << 16) | ('h' << 8) | 'a',
+
+  /* for backward compatibility */
+  GB2312     = PRC,
+  MS_SJIS    = SJIS,
+  MS_GB2312  = PRC,
+  MS_BIG5    = BIG5,
+  MS_WANSUNG = WANSUNG,
+  MS_JOHAB   = JOHAB,
+
+  ADOBE_STANDARD  = ('A' << 24) | ('D' << 16) | ('O' << 8) | 'B',
+  ADOBE_EXPERT    = ('A' << 24) | ('D' << 16) | ('B' << 8) | 'E',
+  ADOBE_CUSTOM    = ('A' << 24) | ('D' << 16) | ('B' << 8) | 'C',
+  ADOBE_LATIN_1   = ('l' << 24) | ('a' << 16) | ('t' << 8) | '1',
+
+  OLD_LATIN_2  = ('l' << 24) | ('a' << 16) | ('t' << 8) | '2',
+
+  APPLE_ROMAN  = ('a' << 24) | ('r' << 16) | ('m' << 8) | 'n',
+}
+
+#assert(size_of(FT_CharMapRec_) == 16)
 
 @private
 FT_CharMapRec_ :: struct {
@@ -90,7 +141,10 @@ FT_CharMapRec_ :: struct {
   encoding_id: FT_UShort,
 }
 
+@private
 FT_CharMap :: ^FT_CharMapRec_
+
+#assert(size_of(FT_Bitmap_Size) == 32)
 
 @private
 FT_Bitmap_Size :: struct {
@@ -103,11 +157,15 @@ FT_Bitmap_Size :: struct {
   y_ppem: FT_Pos,
 }
 
+#assert(size_of(FT_Generic) == 16)
+
 @private
 FT_Generic :: struct {
   data: rawptr,
   finalizer: ^proc(object: rawptr),
 }
+
+#assert(size_of(FT_BBox) == (16 when (size_of(FT_Pos) == 4) else 32))
 
 @private
 FT_BBox :: struct {
@@ -115,10 +173,14 @@ FT_BBox :: struct {
   xMax, yMax: FT_Pos,
 }
 
+#assert(size_of(FT_Vector) == (8 when (size_of(FT_Pos) == 4) else 16))
+
 @private
 FT_Vector :: struct {
   x, y: FT_Pos,
 }
+
+#assert(size_of(FT_Glyph_Metrics) == 64)
 
 @private
 FT_Glyph_Metrics :: struct {
@@ -134,17 +196,31 @@ FT_Glyph_Metrics :: struct {
   vertAdvance: FT_Pos,
 }
 
+#assert(size_of(FT_Outline) == 40)
+
 @private
 FT_Outline :: struct {
   n_contours: i16,
   n_points: i16,
 
   points: ^FT_Vector,
-  tags: ^u8,
+  tags: ^i8,
   contours: ^i16,
 
-  flags: i32,
+  flags: OutlineFlags,
 }
+
+@private
+FT_Glyph_Format :: enum {
+  NONE = (0 << 24) | (0 << 16) | (0 << 8) | 0,
+
+  COMPOSITE  = ('c' << 24) | ('o' << 16) | ('m' << 8) | 'p',
+  BITMAP     = ('b' << 24) | ('i' << 16) | ('t' << 8) | 's',
+  OUTLINE    = ('o' << 24) | ('u' << 16) | ('t' << 8) | 'l',
+  PLOTTER    = ('p' << 24) | ('l' << 16) | ('o' << 8) | 't'
+}
+
+#assert(size_of(FT_GlyphSlotRec_) == 304)
 
 @private
 FT_GlyphSlotRec_ :: struct {
@@ -159,7 +235,7 @@ FT_GlyphSlotRec_ :: struct {
   linearVertAdvance: FT_Fixed,
   advance: FT_Vector,
 
-  format: u32 /*FT_Glyph_Format*/, // stub this to u32 for now since I can't be bothered to define the enum
+  format: FT_Glyph_Format,
 
   bitmap: Bitmap,
   bitmap_left: FT_Int,
@@ -181,7 +257,10 @@ FT_GlyphSlotRec_ :: struct {
   internal: FT_Slot_Internal,
 }
 
+@private
 FT_GlyphSlot :: ^FT_GlyphSlotRec_
+
+#assert(size_of(FT_Size_Metrics) == 56)
 
 @private
 FT_Size_Metrics :: struct {
@@ -197,6 +276,8 @@ FT_Size_Metrics :: struct {
   max_advance: FT_Pos, /* max horizontal advance, in 26.6 pixels */
 }
 
+#assert(size_of(FT_SizeRec) == 88)
+
 @private
 FT_SizeRec :: struct {
   face: Face,
@@ -208,21 +289,41 @@ FT_SizeRec :: struct {
 @private
 FT_Size :: ^FT_SizeRec
 
-//@private
-//FT_StreamRec_ :: struct {
-//  unsigned char*       base,
-//  size: u64,
-//  pos: u64,
-//
-//  FT_StreamDesc        descriptor,
-//  FT_StreamDesc        pathname,
-//  FT_Stream_IoFunc     read,
-//  FT_Stream_CloseFunc  close,
-//
-//  FT_Memory            memory,
-//  unsigned char*       cursor,
-//  unsigned char*       limit,
-//}
+#assert(size_of(FT_StreamDesc) == 8)
+
+@private
+FT_StreamDesc :: struct #raw_union {
+  value: i64,
+  pointer: rawptr,
+}
+
+@private
+FT_Stream_IoFunc :: #type ^proc(stream: FT_Stream, offset: u64, buffer: [^]u8, count: u64) -> u64
+@private
+FT_Stream_CloseFunc :: #type ^proc(stream: FT_Stream)
+
+#assert(size_of(FT_StreamRec_) == 80)
+
+@private
+FT_StreamRec_ :: struct {
+  base: [^]u8,
+  size: u64,
+  pos: u64,
+
+  descriptor: FT_StreamDesc,
+  pathname: FT_StreamDesc,
+  read: FT_Stream_IoFunc,
+  close: FT_Stream_CloseFunc,
+
+  memory: FT_Memory,
+  cursor: [^]u8,
+  limit: [^]u8,
+}
+
+@private
+FT_Stream :: ^FT_StreamRec_
+
+#assert(size_of(FT_ListNodeRec_) == 24)
 
 @private
 FT_ListNodeRec_ :: struct {
@@ -234,11 +335,15 @@ FT_ListNodeRec_ :: struct {
 @private
 FT_ListNode :: ^FT_ListNodeRec_
 
+#assert(size_of(FT_ListRec) == 16)
+
 @private
 FT_ListRec :: struct {
   head: FT_ListNode,
   tail: FT_ListNode,
 }
+
+#assert(size_of(FT_FaceRec_) == 248)
 
 @private
 FT_FaceRec_ :: struct {
@@ -284,21 +389,21 @@ FT_FaceRec_ :: struct {
   /*@private begin */
   driver: FT_Driver,
   memory: FT_Memory,
-  stream: /*FT_Stream*/ ^u32, // TODO: stub it out for now
+  stream: FT_Stream,
 
   sizes_list: FT_ListRec,
 
   autohint: FT_Generic, // face-specific auto-hinter data
   extensions: rawptr,   // unused
 
-  internal: /*FT_Face_Internal*/ ^u32, // TODO: stub it out for now
+  internal: FT_Face_Internal,
 
   /*@private end */
-
-  //@private
-  //@packed
-  //@align(8)
 }
+
+Face :: ^FT_FaceRec_
+
+#assert(size_of(Bitmap) == 40)
 
 Bitmap :: struct {
   rows: u32,
@@ -310,5 +415,3 @@ Bitmap :: struct {
   palette_mode: u8,
   palette: rawptr,
 }
-
-Face :: ^FT_FaceRec_
