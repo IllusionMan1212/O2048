@@ -11,7 +11,7 @@ uniform bool hasTexture;
 
 uniform sampler2D tex;
 
-const float smoothness = 1.0;
+const float smoothness = 0.7;
 
 void main() {
   float alpha = aColor.a;

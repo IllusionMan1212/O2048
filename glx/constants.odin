@@ -1,5 +1,9 @@
 package glx
 
+import x11 "vendor:x11/xlib"
+
+Drawable :: x11.XID
+
 RENDER_TYPE										:: 0x8011
 RGBA_BIT											:: 0x00000001
 DEPTH_SIZE										:: 12

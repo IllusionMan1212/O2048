@@ -874,7 +874,6 @@ x11_create_window :: proc(window_title: cstring, window_size: Vec2, icon_path: c
 
   x11.XMapWindow(x11_display, x11_window)
 
-  // nocheckin
   gl.load_up_to(3, 3, proc(p: rawptr, name: cstring) { (cast(^rawptr)p)^ = glx.GetProcAddressARB(raw_data(string(name))) })
 
   glx_major : i32

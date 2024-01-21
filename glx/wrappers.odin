@@ -3,7 +3,7 @@ package glx
 import x11 "vendor:x11/xlib"
 foreign import glx "system:GL"
 
-Drawable :: x11.XID
+#assert(size_of(__FBConfigRec) == 232)
 
 @private
 __FBConfigRec :: struct {
