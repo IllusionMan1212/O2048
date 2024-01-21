@@ -1,6 +1,8 @@
 package zephr
 
 import "core:fmt"
+import "core:log"
+import "core:os"
 
 import x11 "vendor:x11/xlib"
 import gl "vendor:OpenGL"
@@ -382,6 +384,18 @@ FNV_HASH32_PRIME :: 0x01000193
 @private
 INIT_UI_STACK_SIZE :: 256
 
+when ODIN_DEBUG {
+  @private
+  TerminalLoggerOpts :: log.Options{
+    .Level,
+    .Terminal_Color,
+    .Short_File_Path,
+    .Line,
+  }
+} else {
+  TerminalLoggerOpts :: log.Default_Console_Logger_Opts
+}
+
 COLOR_BLACK   :: Color{0, 0, 0, 255}
 COLOR_WHITE   :: Color{255, 255, 255, 255}
 COLOR_RED     :: Color{255, 0, 0, 255}
@@ -639,6 +653,8 @@ x11_colormap : x11.Colormap
 glx_context  : glx.Context
 @private
 zephr_ctx    : Context
+@private
+logger       : log.Logger
 
 
 ////////////////////////////
@@ -723,11 +739,8 @@ x11_toggle_fullscreen :: proc(fullscreen: bool) {
   }
 }
 
-// TODO: make sure this actually works ??? on gnome cuz I can't see it on dwm lol
-// TODO: currently the icon shows on gnome's sidebar correctly but not in gnome-system-monitor.
-// investigate.
 @private
-x11_assign_window_icon :: proc(icon_path: cstring) {
+x11_assign_window_icon :: proc(icon_path: cstring, window_title: cstring) {
   icon_width, icon_height: i32
   icon_data := image.load(icon_path, &icon_width, &icon_height, nil, 4)
   defer image.image_free(icon_data)
@@ -735,18 +748,17 @@ x11_assign_window_icon :: proc(icon_path: cstring) {
 
   target_size := 2 + icon_width * icon_height
 
-  data := make([]u64, target_size * size_of(u64))
+  data := make([]u64, target_size)
 
   // first two elements are width and height
   data[0] = cast(u64)icon_width
   data[1] = cast(u64)icon_height
 
-  for i in 0..<(icon_width*icon_height) {
-    data[i + 2] = cast(u64)((icon_data[i * 4] << 16) | (icon_data[i * 4 + 1] << 8) | (icon_data[i * 4 + 2] << 0) | (icon_data[i * 4 + 3] << 24))
+  for i in 0..<(icon_width * icon_height) {
+    data[i + 2] = (cast(u64)icon_data[i * 4] << 16) | (cast(u64)icon_data[i * 4 + 1] << 8) | (cast(u64)icon_data[i * 4 + 2] << 0) | (cast(u64)icon_data[i * 4 + 3] << 24)
   }
 
   net_wm_icon := x11.XInternAtom(x11_display, "_NET_WM_ICON", false)
-
   x11.XChangeProperty(x11_display, x11_window, net_wm_icon, XA_CARDINAL, 32, PropModeReplace, raw_data(data), target_size)
 }
 
@@ -766,10 +778,11 @@ x11_resize_window :: proc() {
 
 @private
 x11_create_window :: proc(window_title: cstring, window_size: Vec2, icon_path: cstring, window_non_resizable: bool) {
+  context.logger = logger
   x11_display = x11.XOpenDisplay(nil)
 
   if x11_display == nil {
-    fmt.eprintf("Error: Can't open display\n")
+    log.error("Failed to open X11 display")
     return
   }
 
@@ -794,7 +807,7 @@ x11_create_window :: proc(window_title: cstring, window_size: Vec2, icon_path: c
     {.CWColormap, .CWEventMask}, &attributes)
 
   if (icon_path != "") {
-    x11_assign_window_icon(icon_path)
+    x11_assign_window_icon(icon_path, window_title)
   }
 
   // Hints to the WM that the window is a normal window
@@ -821,6 +834,13 @@ x11_create_window :: proc(window_title: cstring, window_size: Vec2, icon_path: c
     wm_class := x11.XInternAtom(x11_display, "WM_CLASS", false)
     x11.XChangeProperty(x11_display, x11_window, net_wm_name, UTF8_STRING, 8, PropModeReplace, raw_data(string(window_title)), cast(i32)len(window_title))
     x11.XChangeProperty(x11_display, x11_window, wm_class, XA_STRING, 8, PropModeReplace, raw_data(string(window_title)), cast(i32)len(window_title))
+
+    // name to be displayed when the window is reduced to an icon
+    net_wm_icon_name := x11.XInternAtom(x11_display, "_NET_WM_ICON_NAME", false)
+    x11.XChangeProperty(x11_display, x11_window, net_wm_icon_name, UTF8_STRING, 8, PropModeReplace, raw_data(string(window_title)), cast(i32)len(window_title))
+
+    text_property.encoding = XA_STRING
+    x11.XSetWMIconName(x11_display, x11_window, &text_property)
 
     class_hint := x11.XAllocClassHint()
 
@@ -855,13 +875,13 @@ x11_create_window :: proc(window_title: cstring, window_size: Vec2, icon_path: c
   x11.XMapWindow(x11_display, x11_window)
 
   // nocheckin
-  gl.load_up_to(4, 6, proc(p: rawptr, name: cstring) { (cast(^rawptr)p)^ = glx.GetProcAddressARB(raw_data(string(name))) })
+  gl.load_up_to(3, 3, proc(p: rawptr, name: cstring) { (cast(^rawptr)p)^ = glx.GetProcAddressARB(raw_data(string(name))) })
 
   glx_major : i32
   glx_minor : i32
   glx.QueryVersion(x11_display, &glx_major, &glx_minor)
 
-  fmt.printf("Loaded GLX %d.%d\n", glx_major, glx_minor)
+  log.infof("Loaded GLX: %d.%d", glx_major, glx_minor)
 
   visual_attributes := []i32 {
     glx.RENDER_TYPE, glx.RGBA_BIT,
@@ -884,19 +904,15 @@ x11_create_window :: proc(window_title: cstring, window_size: Vec2, icon_path: c
   glx_context = glx.CreateContextAttribsARB(x11_display, fbc[0], nil, true, raw_data(context_attributes))
 
   if glx_context == nil {
-    fmt.eprintf("Failed to create GLX context\n")
+    log.error("Failed to create GLX context")
     return
   }
 
   glx.MakeCurrent(x11_display, x11_window, glx_context)
 
-  // TODO: find a way to properly get the GL version
-  gl_major: i32 = ---
-  gl_minor: i32 = ---
-  gl.GetIntegerv(gl.MAJOR_VERSION, &gl_major)
-  gl.GetIntegerv(gl.MINOR_VERSION, &gl_major)
+  gl_version := gl.GetString(gl.VERSION)
 
-  fmt.printf("GL version: %d.%d\n", gl_major, gl_minor)
+  log.infof("GL Version: %s", gl_version)
 
   glx.SwapIntervalEXT(x11_display, x11_window, 1)
   // we enable blending for text
@@ -932,6 +948,8 @@ x11_close :: proc() {
 
 
 init :: proc(font_path: cstring, icon_path: cstring, window_title: cstring, window_size: Vec2, window_non_resizable: bool) {
+    logger_init()
+
     // TODO: should I initalize the audio here or let the game handle that??
     //int res = audio_init();
     //CORE_ASSERT(res == 0, "Failed to initialize audio");
@@ -1011,6 +1029,7 @@ swap_buffers :: proc() {
 }
 
 iter_events :: proc(e_out: ^Event) -> bool {
+  context.logger = logger
   xev: x11.XEvent
 
   for (cast(bool)x11.XPending(x11_display)) {
@@ -1094,7 +1113,7 @@ iter_events :: proc(e_out: ^Event) -> bool {
         e_out.mouse.button = .BUTTON_FORWARD
         zephr_ctx.mouse.button = .BUTTON_FORWARD
         case:
-        fmt.printf("[WARN] Unknown mouse button pressed: %d\n", xev.xbutton.button)
+        log.warnf("Unknown mouse button pressed: %d", xev.xbutton.button)
       }
 
       return true
@@ -1187,7 +1206,6 @@ fnv_hash32 :: proc(data: []byte, size: u32, hash: u32) -> u32 {
 x11_mods_to_zephr_mods :: proc(scancode: Scancode, is_press: bool) -> KeyMod {
   mods := zephr_ctx.keyboard.mods
 
-  // TODO: figure out a better way of doing this
   if (is_press) {
     if (scancode == .LEFT_SHIFT) {
       mods |= {.LEFT_SHIFT, .SHIFT}
@@ -1270,5 +1288,22 @@ x11_mods_to_zephr_mods :: proc(scancode: Scancode, is_press: bool) -> KeyMod {
 
   zephr_ctx.keyboard.mods = mods
   return mods
+}
+
+@private
+logger_init :: proc() {
+  buf : [128]byte
+  log_file_name := fmt.bprintf(buf[:], "%s.log", ODIN_BUILD_PROJECT_NAME)
+
+  log_file, err := os.open(log_file_name, os.O_CREATE | os.O_WRONLY | os.O_TRUNC, 0o644)
+  if err != os.ERROR_NONE {
+    fmt.eprintln("[ERROR] Failed to open log file. Logs will not be written")
+    return
+  }
+
+  file_logger := log.create_file_logger(log_file)
+  term_logger := log.create_console_logger(opt = TerminalLoggerOpts)
+
+  logger = log.create_multi_logger(file_logger, term_logger)
 }
 

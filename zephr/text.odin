@@ -1,6 +1,7 @@
 package zephr
 
 import "core:fmt"
+import "core:log"
 
 import gl "vendor:OpenGL"
 
@@ -45,6 +46,8 @@ font_instance_vbo : u32
 
 
 init_freetype :: proc(font_path: cstring) -> i32 {
+  context.logger = logger
+
   ft: FT.Library
   if (FT.Init_FreeType(&ft) != 0) {
     return -1
@@ -78,7 +81,7 @@ init_freetype :: proc(font_path: cstring) -> i32 {
   tex_width, tex_height: u32
   for i in 32..<128 {
     if (FT.Load_Char(face, cast(u64)i, .RENDER) != 0) {
-      fmt.eprintf("[ERROR]: failed to load glyph for char '0x%x'\n", i)
+      log.errorf("Failed to load glyph for char '0x%x'", i)
     }
 
     /* FT_Render_Glyph(face->glyph, FT_RENDER_MODE_SDF); */
@@ -93,7 +96,7 @@ init_freetype :: proc(font_path: cstring) -> i32 {
   for i in 32..<128 {
   /* while (glyph_idx) { */
     if (FT.Load_Char(face, cast(u64)i, .RENDER) != 0) {
-      fmt.eprintf("[ERROR]: failed to load glyph for char '0x%x'\n", i)
+      log.errorf("Failed to load glyph for char '0x%x'", i)
     }
 
     /* FT_Render_Glyph(face->glyph, FT_RENDER_MODE_SDF); */
@@ -163,6 +166,7 @@ init_freetype :: proc(font_path: cstring) -> i32 {
 }
 
 init_fonts :: proc(font_path: cstring) -> i32 {
+  context.logger = logger
   font_vbo, font_ebo: u32
 
   res := init_freetype(font_path)
@@ -173,7 +177,7 @@ init_fonts :: proc(font_path: cstring) -> i32 {
   l_font_shader, success := create_shader("shaders/font.vert", "shaders/font.frag")
 
   if (!success) {
-    fmt.println("[FATAL] Failed to create font shader")
+    log.fatal("Failed to create font shader")
     return -2
   }
 

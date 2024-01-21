@@ -1,6 +1,7 @@
 package zephr
 
 import "core:fmt"
+import "core:log"
 import "core:os"
 import "core:mem"
 
@@ -92,12 +93,14 @@ DEFAULT_UI_CONSTRAINTS :: UiConstraints{
 
 @private
 ui_init :: proc(font_path: cstring) {
+  context.logger = logger
+
   res := init_fonts(font_path)
   if (res == -1) {
-    fmt.eprintf("[ERROR]: could not initialize freetype library\n")
+    log.fatal("Failed to initialize the freetype library")
     os.exit(1)
   } else if (res == -2) {
-    fmt.eprintf("[ERROR]: could not load font file: \"%s\"\n", font_path)
+    log.fatalf("Failed to load font file: \"%s\"", font_path)
     os.exit(1)
   } else if (res != 0) {
     os.exit(1)
@@ -110,7 +113,7 @@ ui_init :: proc(font_path: cstring) {
   color_chooser_shader = l_color_chooser_shader
 
   if !success1 || !success2 {
-    fmt.eprintf("[ERROR]: could not load ui shaders\n")
+    log.fatal("Failed to load ui shaders")
     os.exit(1)
   }
 
