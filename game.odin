@@ -27,13 +27,14 @@ ColorPalette :: struct {
 }
 
 Tile :: struct {
+  start_pos: zephr.Vec2,
+  position: zephr.Vec2,
+  new_pos: zephr.Vec2,
+  anim_timer: time.Duration,
+  scale: zephr.Vec2,
   value: u16,
   new_value: u16,
   merged: bool,
-
-  anim_x_offset_relative: f64,
-  anim_y_offset_relative: f64,
-  tiles_to_move: u8,
 }
 
 Game :: struct {
@@ -58,9 +59,9 @@ Game :: struct {
 }
 
 @private
-TILE_ANIM_SPEED     :: 2.5
+TILE_ANIM_DURATION :: time.Millisecond * 300
 @private
-TILE_SPAWN_SPEED    :: 6.0
+TILE_SPAWN_SPEED    :: 8.0
 @private
 GAMEOVER_ANIM_DURATION :: time.Millisecond * 300
 
@@ -73,7 +74,7 @@ neighbors := [4]zephr.Vec2 {
 }
 
 // nocheckin
-timeElapsed: time.Duration = 0
+gameover_anim_time: time.Duration = 0
 
 @private
 game : Game
@@ -141,30 +142,32 @@ get_tile_font_size :: proc(value: u16) -> u32 {
 move_right :: proc() {
   game.last_move_dir = .RIGHT
 
-  for i in 0..<4 {
-    for j := 2; j >= 0; j -= 1 {
-      if (game.board[i][j].value == 0) {
+  for row in 0..<4 {
+    for col := 2; col >= 0; col -= 1 {
+      if (game.board[row][col].value == 0) {
         continue
       }
       tiles_to_move := 0
-      x := j
+      x := col
 
-      src := &game.board[i][j]
+      src := &game.board[row][col]
+      dest := &game.board[row][x]
 
-      loop: for {
-        if (x >= 3) do break loop
+      for {
+        if (x >= 3) do break
         x += 1
+        dest = &game.board[row][x]
 
         // next tile is empty so we can move there
-        if (game.board[i][x].new_value == 0) {
+        if (dest.new_value == 0) {
           tiles_to_move += 1
           continue
         }
 
         // next tile has the same value so we can merge and move
-        if (game.board[i][x].new_value == src.new_value && !game.board[i][x].merged) {
+        if (dest.new_value == src.new_value && !dest.merged) {
           tiles_to_move += 1
-          game.board[i][x].merged = true
+          dest.merged = true
           break
         } else {
           // next tile has a different value so we can't move there
@@ -173,16 +176,18 @@ move_right :: proc() {
         }
       }
 
-      src.tiles_to_move = auto_cast tiles_to_move
+      dest = &game.board[row][x]
 
       if (tiles_to_move > 0) {
-        if (game.board[i][x].merged) {
-          game.board[i][x].new_value *= 2
-          game.score += auto_cast game.board[i][x].new_value
+        if (dest.merged) {
+          dest.new_value *= 2
+          game.score += auto_cast dest.new_value
         } else {
-          game.board[i][x].new_value = src.new_value
+          dest.new_value = src.new_value
         }
         src.new_value = 0
+        src.new_pos = zephr.Vec2{cast(f32)row, cast(f32)x}
+        src.anim_timer = 0
         game.animating = true
         game.spawning_tile_coords = get_random_available_tile_coords()
         game.spawning_tile_value = get_spawned_tile_value()
@@ -191,37 +196,35 @@ move_right :: proc() {
   }
 }
 
-// TODO: ideas for refactoring the animation logic and separating game state from rendering
-// the board is just a state that we keep in memory but never use it for rendering
-// and a tile is an enitity that has a position (in the board or on the screen??) that we can animate using lerp
-// we draw the tile entities and not the board state. the tile entities update their positions according to the board state at the end of the frame??
 move_left :: proc() {
   game.last_move_dir = .LEFT
 
-  for i in 0..<4 {
-    for j in 1..<4 {
-      if (game.board[i][j].value == 0) {
+  for row in 0..<4 {
+    for col in 1..<4 {
+      if (game.board[row][col].value == 0) {
         continue
       }
       tiles_to_move := 0
-      x := j
+      x := col
 
-      src := &game.board[i][j]
+      src := &game.board[row][col]
+      dest := &game.board[row][x]
 
-      loop: for {
-        if (x <= 0) do break loop
+      for {
+        if (x <= 0) do break
         x -= 1
+        dest = &game.board[row][x]
 
         // next tile is empty so we can move there
-        if (game.board[i][x].new_value == 0) {
+        if (dest.new_value == 0) {
           tiles_to_move += 1
           continue
         }
 
         // next tile has the same value so we can merge and move
-        if (game.board[i][x].new_value == src.new_value && !game.board[i][x].merged) {
+        if ((dest.new_value == src.new_value) && !dest.merged) {
           tiles_to_move += 1
-          game.board[i][x].merged = true
+          dest.merged = true
           break
         } else {
           // next tile has a different value so we can't move there
@@ -230,16 +233,18 @@ move_left :: proc() {
         }
       }
 
-      src.tiles_to_move = auto_cast tiles_to_move
+      dest = &game.board[row][x]
 
       if (tiles_to_move > 0) {
-        if (game.board[i][x].merged) {
-          game.board[i][x].new_value *= 2
-          game.score += auto_cast game.board[i][x].new_value
+        if (dest.merged) {
+          dest.new_value *= 2
+          game.score += auto_cast dest.new_value
         } else {
-          game.board[i][x].new_value = src.new_value
+          dest.new_value = src.new_value
         }
         src.new_value = 0
+        src.new_pos = zephr.Vec2{cast(f32)row, cast(f32)x}
+        src.anim_timer = 0
         game.animating = true
         game.spawning_tile_coords = get_random_available_tile_coords()
         game.spawning_tile_value = get_spawned_tile_value()
@@ -251,28 +256,30 @@ move_left :: proc() {
 move_down :: proc() {
   game.last_move_dir = .DOWN
 
-  for i := 2; i >= 0; i -= 1 {
-    for j in 0..<4 {
-      if (game.board[i][j].value == 0) {
+  for row := 2; row >= 0; row -= 1 {
+    for col in 0..<4 {
+      if (game.board[row][col].value == 0) {
         continue
       }
       tiles_to_move := 0
-      y := i
+      y := row
 
-      src := &game.board[i][j]
+      src := &game.board[row][col]
+      dest := &game.board[y][col]
 
-      loop: for {
-        if (y >= 3) do break loop
+      for {
+        if (y >= 3) do break
         y += 1
+        dest = &game.board[y][col]
 
-        if (game.board[y][j].new_value == 0) {
+        if (dest.new_value == 0) {
           tiles_to_move += 1
           continue
         }
 
-        if (game.board[y][j].new_value == src.new_value && !game.board[y][j].merged) {
+        if ((dest.new_value == src.new_value) && !dest.merged) {
           tiles_to_move += 1
-          game.board[y][j].merged = true
+          dest.merged = true
           break
         } else {
           y -= 1
@@ -280,16 +287,18 @@ move_down :: proc() {
         }
       }
 
-      src.tiles_to_move = auto_cast tiles_to_move
+      dest = &game.board[y][col]
 
       if (tiles_to_move > 0) {
-        if (game.board[y][j].merged) {
-          game.board[y][j].new_value *= 2
-          game.score += auto_cast game.board[y][j].new_value
+        if (dest.merged) {
+          dest.new_value *= 2
+          game.score += auto_cast dest.new_value
         } else {
-          game.board[y][j].new_value = src.new_value
+          dest.new_value = src.new_value
         }
         src.new_value = 0
+        src.new_pos = zephr.Vec2{cast(f32)y, cast(f32)col}
+        src.anim_timer = 0
         game.animating = true
         game.spawning_tile_coords = get_random_available_tile_coords()
         game.spawning_tile_value = get_spawned_tile_value()
@@ -301,28 +310,30 @@ move_down :: proc() {
 move_up :: proc() {
   game.last_move_dir = .UP
 
-  for i in 1..<4 {
-    for j in 0..<4 {
-      if (game.board[i][j].new_value == 0) {
+  for row in 1..<4 {
+    for col in 0..<4 {
+      if (game.board[row][col].value == 0) {
         continue
       }
       tiles_to_move := 0
-      y := i
+      y := row
 
-      src := &game.board[i][j]
+      src := &game.board[row][col]
+      dest := &game.board[y][col]
 
-      loop: for {
-        if (y <= 0) do break loop
+      for {
+        if (y <= 0) do break
         y -= 1
+        dest = &game.board[y][col]
 
-        if (game.board[y][j].new_value == 0) {
+        if (dest.new_value == 0) {
           tiles_to_move += 1
           continue
         }
 
-        if (game.board[y][j].new_value == src.new_value && !game.board[y][j].merged) {
+        if (dest.new_value == src.new_value && !dest.merged) {
           tiles_to_move += 1
-          game.board[y][j].merged = true
+          dest.merged = true
           break
         } else {
           y += 1
@@ -330,16 +341,18 @@ move_up :: proc() {
         }
       }
 
-      src.tiles_to_move = auto_cast tiles_to_move
+      dest = &game.board[y][col]
 
       if (tiles_to_move > 0) {
-        if (game.board[y][j].merged) {
-          game.board[y][j].new_value *= 2
-          game.score += auto_cast game.board[y][j].new_value
+        if (dest.merged) {
+          dest.new_value *= 2
+          game.score += auto_cast dest.new_value
         } else {
-          game.board[y][j].new_value = src.new_value
+          dest.new_value = src.new_value
         }
         src.new_value = 0
+        src.new_pos = zephr.Vec2{cast(f32)y, cast(f32)col}
+        src.anim_timer = 0
         game.animating = true
         game.spawning_tile_coords = get_random_available_tile_coords()
         game.spawning_tile_value = get_spawned_tile_value()
@@ -370,7 +383,7 @@ reset_palette :: proc() {
 }
 
 reset_game :: proc() {
-  timeElapsed = 0
+  gameover_anim_time = 0
 
   game.score = 0
   game.animating = false
@@ -387,9 +400,6 @@ reset_game :: proc() {
       game.board[y][x].value = 0
       game.board[y][x].new_value = 0
       game.board[y][x].merged = false
-      game.board[y][x].tiles_to_move = 0
-      game.board[y][x].anim_x_offset_relative = 0
-      game.board[y][x].anim_y_offset_relative = 0
     }
   }
 
@@ -426,15 +436,27 @@ get_spawned_tile_value :: proc() -> u16 {
 }
 
 spawn_new_tile_with_value :: proc(x, y: u8, value: u16) {
-  game.board[x][y].value = value
-  game.board[x][y].new_value = value
+  game.board[x][y] = Tile{
+    value = value,
+    new_value = value,
+    position = zephr.Vec2{cast(f32)x, cast(f32)y},
+    start_pos = zephr.Vec2{cast(f32)x, cast(f32)y},
+    new_pos = zephr.Vec2{cast(f32)x, cast(f32)y},
+    scale = zephr.Vec2{1, 1},
+  }
 }
 
 spawn_new_tile :: proc(x, y: u8) {
   val := get_spawned_tile_value()
 
-  game.board[x][y].value = val
-  game.board[x][y].new_value = val
+  game.board[x][y] = Tile{
+    value = val,
+    new_value = val,
+    position = zephr.Vec2{cast(f32)x, cast(f32)y},
+    start_pos = zephr.Vec2{cast(f32)x, cast(f32)y},
+    new_pos = zephr.Vec2{cast(f32)x, cast(f32)y},
+    scale = zephr.Vec2{1, 1},
+  }
 }
 
 get_random_available_tile_coords :: proc() -> zephr.Vec2 {
@@ -506,6 +528,8 @@ handle_keyboard_input :: proc(e: zephr.Event) {
     if (can_move) do move_left()
   } else if (e.key.scancode == .RIGHT) {
     if (can_move) do move_right()
+  } else if (e.key.scancode == .N) {
+    reset_game()
   }
 }
 
@@ -545,116 +569,174 @@ game_loop :: proc() {
 }
 
 update_positions :: proc(delta_t: time.Duration) {
-  // TODO: lerp the positions and use delta_t for it
   delta_t_f := time.duration_seconds(delta_t)
-  // TODO: experiment; I think I can lerp the tile positions instead of doing this
 
   if (game.animating) {
-    switch (game.last_move_dir) {
+    switch game.last_move_dir {
       case .LEFT:
-        for i in 0..<4 {
-          for j in 1..<4 {
-            tiles_to_move := game.board[i][j].tiles_to_move
-            speed := TILE_ANIM_SPEED * cast(f64)tiles_to_move
-            src := &game.board[i][j]
-            dest := &game.board[i][j - cast(int)tiles_to_move]
+      for i in 0..<4 {
+        for j in 1..<4 {
+          src := &game.board[i][j]
+          if src.value == 0 || src.start_pos == src.new_pos {
+            continue
+          }
+          if src.anim_timer < TILE_ANIM_DURATION {
+            src.position.x = math.lerp(src.start_pos.x, src.new_pos.x, zephr.ease_out_cubic(cast(f32)src.anim_timer / cast(f32)TILE_ANIM_DURATION))
+            src.position.y = math.lerp(src.start_pos.y, src.new_pos.y, zephr.ease_out_cubic(cast(f32)src.anim_timer / cast(f32)TILE_ANIM_DURATION))
+            src.anim_timer += delta_t
+          } else {
+            dest := &game.board[cast(int)src.new_pos.x][cast(int)src.new_pos.y]
 
-            if (src.tiles_to_move != 0) {
-              src.anim_x_offset_relative -= speed * delta_t_f
-
-              if (src.anim_x_offset_relative <= -0.240 * (cast(f64)tiles_to_move + (cast(f64)tiles_to_move * 0.02))) {
-                if (dest.new_value == src.value * 2) {
-                  dest.merged = false
-                }
-
-                src.value = src.new_value
-                dest.value = dest.new_value
-
-                src.tiles_to_move = 0
-                src.anim_x_offset_relative = 0
-                game.spawning_new_tile = true
-              }
+            if dest.new_value == src.value * 2 {
+              dest.merged = false
             }
+
+            dest^ = Tile{
+              value = dest.new_value,
+              new_value = dest.new_value,
+              position = src.new_pos,
+              start_pos = src.new_pos,
+              new_pos = src.new_pos,
+              anim_timer = 0,
+              scale = zephr.Vec2{1, 1},
+            }
+            src^ = Tile{
+              value = src.new_value,
+              new_value = src.new_value,
+              position = src.start_pos,
+              start_pos = src.start_pos,
+              new_pos = src.start_pos,
+              anim_timer = 0,
+              scale = zephr.Vec2{1, 1},
+            }
+
+            game.spawning_new_tile = true
           }
         }
+      }
       case .RIGHT:
-        for i in 0..<4 {
-          for j := 2; j >= 0; j -= 1 {
-            tiles_to_move := game.board[i][j].tiles_to_move
-            speed := TILE_ANIM_SPEED * cast(f64)tiles_to_move
-            src := &game.board[i][j]
-            dest := &game.board[i][j + cast(int)tiles_to_move]
+      for i in 0..<4 {
+        for j := 2; j >= 0; j -= 1 {
+          src := &game.board[i][j]
+          if src.value == 0 || src.start_pos == src.new_pos {
+            continue
+          }
+          if src.anim_timer < TILE_ANIM_DURATION {
+            src.position.x = math.lerp(src.start_pos.x, src.new_pos.x, zephr.ease_out_cubic(cast(f32)src.anim_timer / cast(f32)TILE_ANIM_DURATION))
+            src.position.y = math.lerp(src.start_pos.y, src.new_pos.y, zephr.ease_out_cubic(cast(f32)src.anim_timer / cast(f32)TILE_ANIM_DURATION))
+            src.anim_timer += delta_t
+          } else {
+            dest := &game.board[cast(int)src.new_pos.x][cast(int)src.new_pos.y]
 
-            if (src.tiles_to_move != 0) {
-              src.anim_x_offset_relative += speed * delta_t_f
-
-              if (src.anim_x_offset_relative >= 0.240 * (cast(f64)tiles_to_move + (cast(f64)tiles_to_move * 0.02))) {
-                if (dest.new_value == src.value * 2) {
-                  dest.merged = false
-                }
-
-                src.value = src.new_value
-                dest.value = dest.new_value
-
-                src.tiles_to_move = 0
-                src.anim_x_offset_relative = 0
-                game.spawning_new_tile = true
-              }
+            if dest.new_value == src.value * 2 {
+              dest.merged = false
             }
+
+            dest^ = Tile{
+              value = dest.new_value,
+              new_value = dest.new_value,
+              position = src.new_pos,
+              start_pos = src.new_pos,
+              new_pos = src.new_pos,
+              anim_timer = 0,
+              scale = zephr.Vec2{1, 1},
+            }
+            src^ = Tile{
+              value = src.new_value,
+              new_value = src.new_value,
+              position = src.start_pos,
+              start_pos = src.start_pos,
+              new_pos = src.start_pos,
+              anim_timer = 0,
+              scale = zephr.Vec2{1, 1},
+            }
+
+            game.spawning_new_tile = true
           }
         }
+      }
       case .UP:
-        for i in 1..<4 {
-          for j in 0..<4 {
-            tiles_to_move := game.board[i][j].tiles_to_move
-            speed := TILE_ANIM_SPEED * cast(f64)tiles_to_move
-            src := &game.board[i][j]
-            dest := &game.board[i - cast(int)tiles_to_move][j]
+      for i in 1..<4 {
+        for j in 0..<4 {
+          src := &game.board[i][j]
+          if src.value == 0 || src.start_pos == src.new_pos {
+            continue
+          }
+          if src.anim_timer < TILE_ANIM_DURATION {
+            src.position.x = math.lerp(src.start_pos.x, src.new_pos.x, zephr.ease_out_cubic(cast(f32)src.anim_timer / cast(f32)TILE_ANIM_DURATION))
+            src.position.y = math.lerp(src.start_pos.y, src.new_pos.y, zephr.ease_out_cubic(cast(f32)src.anim_timer / cast(f32)TILE_ANIM_DURATION))
+            src.anim_timer += delta_t
+          } else {
+            dest := &game.board[cast(int)src.new_pos.x][cast(int)src.new_pos.y]
 
-            if (src.tiles_to_move != 0) {
-              src.anim_y_offset_relative -= speed * delta_t_f
-
-              if (src.anim_y_offset_relative <= -0.240 * (cast(f64)tiles_to_move + (cast(f64)tiles_to_move * 0.02))) {
-                if (dest.new_value == src.value * 2) {
-                  dest.merged = false
-                }
-
-                src.value = src.new_value
-                dest.value = dest.new_value
-
-                src.tiles_to_move = 0
-                src.anim_y_offset_relative = 0
-                game.spawning_new_tile = true
-              }
+            if dest.new_value == src.value * 2 {
+              dest.merged = false
             }
+
+            dest^ = Tile{
+              value = dest.new_value,
+              new_value = dest.new_value,
+              position = src.new_pos,
+              start_pos = src.new_pos,
+              new_pos = src.new_pos,
+              anim_timer = 0,
+              scale = zephr.Vec2{1, 1},
+            }
+            src^ = Tile{
+              value = src.new_value,
+              new_value = src.new_value,
+              position = src.start_pos,
+              start_pos = src.start_pos,
+              new_pos = src.start_pos,
+              anim_timer = 0,
+              scale = zephr.Vec2{1, 1},
+            }
+
+            game.spawning_new_tile = true
           }
         }
+      }
       case .DOWN:
-        for i := 2; i >= 0; i -= 1 {
-          for j in 0..<4 {
-            tiles_to_move := game.board[i][j].tiles_to_move
-            speed := TILE_ANIM_SPEED * cast(f64)tiles_to_move
-            src := &game.board[i][j]
-            dest := &game.board[i + cast(int)tiles_to_move][j]
+      for i := 2; i >= 0; i -= 1 {
+        for j in 0..<4 {
+          src := &game.board[i][j]
+          if src.value == 0 || src.start_pos == src.new_pos {
+            continue
+          }
+          if src.anim_timer < TILE_ANIM_DURATION {
+            src.position.x = math.lerp(src.start_pos.x, src.new_pos.x, zephr.ease_out_cubic(cast(f32)src.anim_timer / cast(f32)TILE_ANIM_DURATION))
+            src.position.y = math.lerp(src.start_pos.y, src.new_pos.y, zephr.ease_out_cubic(cast(f32)src.anim_timer / cast(f32)TILE_ANIM_DURATION))
+            src.anim_timer += delta_t
+          } else {
+            dest := &game.board[cast(int)src.new_pos.x][cast(int)src.new_pos.y]
 
-            if (src.tiles_to_move != 0) {
-              src.anim_y_offset_relative += speed * delta_t_f
-
-              if (src.anim_y_offset_relative >= 0.240 * (cast(f64)tiles_to_move + (cast(f64)tiles_to_move * 0.02))) {
-                if (dest.new_value == src.value * 2) {
-                  dest.merged = false
-                }
-
-                src.value = src.new_value
-                dest.value = dest.new_value
-
-                src.tiles_to_move = 0
-                src.anim_y_offset_relative = 0
-                game.spawning_new_tile = true
-              }
+            if dest.new_value == src.value * 2 {
+              dest.merged = false
             }
+
+            dest^ = Tile{
+              value = dest.new_value,
+              new_value = dest.new_value,
+              position = src.new_pos,
+              start_pos = src.new_pos,
+              new_pos = src.new_pos,
+              anim_timer = 0,
+              scale = zephr.Vec2{1, 1},
+            }
+            src^ = Tile{
+              value = src.new_value,
+              new_value = src.new_value,
+              position = src.start_pos,
+              start_pos = src.start_pos,
+              new_pos = src.start_pos,
+              anim_timer = 0,
+              scale = zephr.Vec2{1, 1},
+            }
+
+            game.spawning_new_tile = true
           }
         }
+      }
     }
   }
 
@@ -677,10 +759,10 @@ update_positions :: proc(delta_t: time.Duration) {
   }
 
   if (game.has_lost) {
-    if timeElapsed < GAMEOVER_ANIM_DURATION {
-      game.game_over_opacity = cast(f32)math.lerp(0.0, 255.0, cast(f64)timeElapsed / cast(f64)GAMEOVER_ANIM_DURATION)
-      game.game_over_bg_opacity = cast(f32)math.lerp(0.0, 200.0, cast(f64)timeElapsed / cast(f64)GAMEOVER_ANIM_DURATION)
-      timeElapsed += delta_t
+    if gameover_anim_time < GAMEOVER_ANIM_DURATION {
+      game.game_over_opacity = cast(f32)math.lerp(0.0, 255.0, cast(f64)gameover_anim_time / cast(f64)GAMEOVER_ANIM_DURATION)
+      game.game_over_bg_opacity = cast(f32)math.lerp(0.0, 200.0, cast(f64)gameover_anim_time / cast(f64)GAMEOVER_ANIM_DURATION)
+      gameover_anim_time += delta_t
     } else {
       game.game_over_bg_opacity = 255
       game.game_over_bg_opacity = 200
@@ -779,9 +861,13 @@ draw_board :: proc() {
   zephr.set_height_constraint(&tile_con, tile_height, .FIXED)
   zephr.set_width_constraint(&tile_con, 1, .ASPECT_RATIO)
 
-  for i in 0..<4 {
-    for j in 0..<4 {
-      tile := &game.board[i][j]
+  for row in 0..<4 {
+    for col in 0..<4 {
+      tile := &game.board[row][col]
+      if tile.value == 0 {
+        continue
+      }
+
       tile_color := get_tile_color(tile.value)
       style := zephr.UiStyle {
         bg_color = tile_color,
@@ -790,21 +876,19 @@ draw_board :: proc() {
       }
       buf: [16]byte
       value := fmt.bprintf(buf[:], "%d", tile.value)
-      tile_y_pos := ((tile_height + tile_padding) * cast(f32)i + tile_padding + cast(f32)game.board[i][j].anim_y_offset_relative * board_con.height)
-      tile_x_pos := ((tile_height + tile_padding) * cast(f32)j + tile_padding + cast(f32)game.board[i][j].anim_x_offset_relative * board_con.height)
+      tile_y_pos := ((tile_height + tile_padding) * tile.position.x + tile_padding)
+      tile_x_pos := ((tile_height + tile_padding) * tile.position.y + tile_padding)
 
       zephr.set_y_constraint(&tile_con, tile_y_pos, .FIXED)
       zephr.set_x_constraint(&tile_con, tile_x_pos, .FIXED)
-      if (tile.value > 0) {
-        zephr.draw_quad(&tile_con, style)
+      zephr.draw_quad(&tile_con, style)
 
-        // value text
-        zephr.set_parent_constraint(&text_con, &tile_con)
-        zephr.set_x_constraint(&text_con, 0, .FIXED)
-        zephr.set_y_constraint(&text_con, 0, .FIXED)
+      // value text
+      zephr.set_parent_constraint(&text_con, &tile_con)
+      zephr.set_x_constraint(&text_con, 0, .FIXED)
+      zephr.set_y_constraint(&text_con, 0, .FIXED)
 
-        zephr.draw_text(value, get_tile_font_size(tile.value), text_con, zephr.mult_color(tile_color, 0.5), .CENTER)
-      }
+      zephr.draw_text(value, get_tile_font_size(tile.value), text_con, zephr.mult_color(tile_color, 0.5), .CENTER)
     }
   }
 
@@ -820,6 +904,8 @@ draw_board :: proc() {
     tile_y_pos := ((tile_height + tile_padding) * game.spawning_tile_coords.x + tile_padding) + tile_height / 2 - game.spawning_tile_scale * tile_height / 2
     zephr.set_x_constraint(&tile_con, tile_x_pos, .FIXED)
     zephr.set_y_constraint(&tile_con, tile_y_pos, .FIXED)
+    // TODO: don't set the scale by making the height smaller
+    // instead, just set the scale
     zephr.set_height_constraint(&tile_con, tile_height * game.spawning_tile_scale, .FIXED)
     zephr.set_width_constraint(&tile_con, 1, .ASPECT_RATIO)
     zephr.draw_quad(&tile_con, style)
