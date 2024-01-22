@@ -351,6 +351,10 @@ get_glyph_instance_list_from_text :: proc(text: string, font_size: u32, constrai
   model := identity()
   scale(&model, Vec3{font_scale, font_scale, 1})
 
+  translate(&model, Vec3{-text_size.x * font_scale / 2, -text_size.y * font_scale / 2, 0})
+  scale(&model, Vec3{constraints.scale.x, constraints.scale.y, 1})
+  translate(&model, Vec3{text_size.x *font_scale / 2, text_size.y * font_scale / 2, 0})
+
   // rotate around the center point of the text
   translate(&model, Vec3{-text_size.x * font_scale / 2, -text_size.y * font_scale / 2, 0})
   rotate(&model, constraints.rotation, Vec3{0, 0, 1})
