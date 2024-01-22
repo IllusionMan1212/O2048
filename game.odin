@@ -46,7 +46,7 @@ Game :: struct {
   has_lost: bool,
   game_over_bg_opacity: f32,
   game_over_opacity: f32,
-  spawning_tile_scale: f32,
+  spawning_tile_scale: zephr.Vec2,
   spawning_tile_coords: zephr.Vec2,
   spawning_tile_value: u16,
 
@@ -61,7 +61,7 @@ Game :: struct {
 @private
 TILE_ANIM_DURATION :: time.Millisecond * 300
 @private
-TILE_SPAWN_SPEED    :: 8.0
+TILE_SPAWN_DURATION    :: time.Millisecond * 300
 @private
 GAMEOVER_ANIM_DURATION :: time.Millisecond * 300
 
@@ -442,7 +442,7 @@ spawn_new_tile_with_value :: proc(x, y: u8, value: u16) {
     position = zephr.Vec2{cast(f32)x, cast(f32)y},
     start_pos = zephr.Vec2{cast(f32)x, cast(f32)y},
     new_pos = zephr.Vec2{cast(f32)x, cast(f32)y},
-    scale = zephr.Vec2{1, 1},
+    scale = zephr.Vec2{0, 0},
   }
 }
 
@@ -569,8 +569,6 @@ game_loop :: proc() {
 }
 
 update_positions :: proc(delta_t: time.Duration) {
-  delta_t_f := time.duration_seconds(delta_t)
-
   if (game.animating) {
     switch game.last_move_dir {
       case .LEFT:
@@ -746,15 +744,20 @@ update_positions :: proc(delta_t: time.Duration) {
   }
 
   if (game.spawning_new_tile) {
-    game.spawning_tile_scale += (TILE_SPAWN_SPEED * cast(f32)delta_t_f)
+    tile := &game.board[cast(int)game.spawning_tile_coords.x][cast(int)game.spawning_tile_coords.y]
 
-    if (game.spawning_tile_scale >= 1.0) {
-      spawn_new_tile_with_value(cast(u8)game.spawning_tile_coords.x, cast(u8)game.spawning_tile_coords.y, game.spawning_tile_value)
+    if tile.anim_timer < TILE_SPAWN_DURATION {
+      game.spawning_tile_scale.x = math.lerp(cast(f32)0, 1, zephr.ease_out_circ(cast(f32)tile.anim_timer / cast(f32)TILE_SPAWN_DURATION))
+      game.spawning_tile_scale.y = math.lerp(cast(f32)0, 1, zephr.ease_out_circ(cast(f32)tile.anim_timer / cast(f32)TILE_SPAWN_DURATION))
+      tile.anim_timer += delta_t
+    } else {
+      spawn_new_tile_with_value(cast(u8)game.spawning_tile_coords.x, cast(u8)game.spawning_tile_coords.y, game.spawning_tile_value);
+      tile.anim_timer = 0
       game.spawning_tile_coords = zephr.Vec2{0, 0}
       game.spawning_tile_value = 0
+      game.spawning_tile_scale = 0.0
       game.spawning_new_tile = false
       game.animating = false
-      game.spawning_tile_scale = 0.0
     }
   }
 
@@ -897,26 +900,26 @@ draw_board :: proc() {
     tile_color := get_tile_color(game.spawning_tile_value)
     style := zephr.UiStyle {
       bg_color = tile_color,
-      border_radius = tile_board_radius * game.spawning_tile_scale,
+      border_radius = tile_board_radius,
       align = .TOP_LEFT,
     }
-    tile_x_pos := ((tile_height + tile_padding) * game.spawning_tile_coords.y + tile_padding) + tile_height / 2 - game.spawning_tile_scale * tile_height / 2
-    tile_y_pos := ((tile_height + tile_padding) * game.spawning_tile_coords.x + tile_padding) + tile_height / 2 - game.spawning_tile_scale * tile_height / 2
+    tile_x_pos := ((tile_height + tile_padding) * game.spawning_tile_coords.y + tile_padding)
+    tile_y_pos := ((tile_height + tile_padding) * game.spawning_tile_coords.x + tile_padding)
     zephr.set_x_constraint(&tile_con, tile_x_pos, .FIXED)
     zephr.set_y_constraint(&tile_con, tile_y_pos, .FIXED)
-    // TODO: don't set the scale by making the height smaller
-    // instead, just set the scale
-    zephr.set_height_constraint(&tile_con, tile_height * game.spawning_tile_scale, .FIXED)
+    zephr.set_height_constraint(&tile_con, tile_height, .FIXED)
     zephr.set_width_constraint(&tile_con, 1, .ASPECT_RATIO)
+    tile_con.scale = game.spawning_tile_scale
     zephr.draw_quad(&tile_con, style)
     // value text
     zephr.set_parent_constraint(&text_con, &tile_con)
     zephr.set_x_constraint(&text_con, 0, .FIXED)
     zephr.set_y_constraint(&text_con, 0, .FIXED)
+    text_con.scale = game.spawning_tile_scale
 
     buf: [16]byte
     value := fmt.bprintf(buf[:], "%d", game.spawning_tile_value)
-    zephr.draw_text(value, cast(u32)(cast(f32)get_tile_font_size(game.spawning_tile_value) * game.spawning_tile_scale), text_con, zephr.mult_color(tile_color, 0.5), .CENTER)
+    zephr.draw_text(value, cast(u32)get_tile_font_size(game.spawning_tile_value), text_con, zephr.mult_color(tile_color, 0.5), .CENTER)
   }
 }
 
