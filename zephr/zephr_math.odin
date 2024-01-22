@@ -1,6 +1,7 @@
 package zephr
 
 import "core:math"
+import "core:intrinsics"
 
 Vec2 :: [2]f32
 Vec3 :: [3]f32
@@ -144,4 +145,52 @@ get_contrast :: proc(fg: Color, bg: Color) -> f32 {
   l2 := get_luminance(bg)
 
   return (max(l1, l2) + 0.05) / (min(l1, l2) + 0.05)
+}
+
+//
+//
+// Easing functions
+//
+//
+
+ease_out_circ :: proc(t: $T) -> T where intrinsics.type_is_numeric(T) {
+  return math.sqrt(1 - math.pow(t - 1, 2));
+}
+
+ease_out_cubic :: proc(t: $T) -> T where intrinsics.type_is_numeric(T) {
+  return 1 - math.pow(1 - t, 3);
+}
+
+ease_out_elastic :: proc(t: $T) -> T where intrinsics.type_is_numeric(T) {
+  c4: T = (2 * math.PI) / 3;
+
+  if t == 0 {
+    return 0;
+  } else if t == 1 {
+    return 1;
+  } else {
+    return math.pow(2, -10 * t) * math.sin_f32((t * 10 - 0.75) * c4) + 1;
+  }
+}
+
+ease_in_quint :: proc(t: $T) -> T where intrinsics.type_is_numeric(T) {
+  return math.pow(t, 5);
+}
+
+ease_out_bounce :: proc(t: $T) -> T where intrinsics.type_is_numeric(T) {
+  t := t
+  n1: T = 7.5625;
+  d1: T = 2.75;
+  if (t < 1 / d1) {
+    return n1 * t * t;
+  } else if (t < 2 / d1) {
+    t -= 1.5 / d1;
+    return n1 * (t) * t + 0.75;
+  } else if (t < 2.5 / d1) {
+    t -= 2.25 / d1;
+    return n1 * (t) * t + 0.9375;
+  } else {
+    t -= 2.625 / d1;
+    return n1 * (t) * t + 0.984375;
+  }
 }
