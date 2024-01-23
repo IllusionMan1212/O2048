@@ -884,6 +884,10 @@ x11_create_window :: proc(window_title: cstring, window_size: Vec2, icon_path: c
 
   visual_attributes := []i32 {
     glx.RENDER_TYPE, glx.RGBA_BIT,
+    glx.RED_SIZE, 8,
+    glx.GREEN_SIZE, 8,
+    glx.BLUE_SIZE, 8,
+    glx.ALPHA_SIZE, 8,
     glx.DEPTH_SIZE, 24,
     glx.DOUBLEBUFFER, 1,
     glx.SAMPLES, 4, // MSAA

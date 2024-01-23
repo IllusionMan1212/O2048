@@ -6,6 +6,10 @@ Drawable :: x11.XID
 
 RENDER_TYPE										:: 0x8011
 RGBA_BIT											:: 0x00000001
+RED_SIZE											:: 8
+GREEN_SIZE										:: 9
+BLUE_SIZE											:: 10
+ALPHA_SIZE										:: 11
 DEPTH_SIZE										:: 12
 DOUBLEBUFFER									:: 5
 SAMPLES												:: 100001

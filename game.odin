@@ -59,9 +59,9 @@ Game :: struct {
 }
 
 @private
-TILE_ANIM_DURATION :: time.Millisecond * 300
+TILE_ANIM_DURATION :: time.Millisecond * 250
 @private
-TILE_SPAWN_DURATION    :: time.Millisecond * 300
+TILE_SPAWN_DURATION    :: time.Millisecond * 200
 @private
 GAMEOVER_ANIM_DURATION :: time.Millisecond * 300
 
