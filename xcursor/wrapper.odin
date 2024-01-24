@@ -1,3 +1,4 @@
+// +build linux
 package xcursor
 
 import x11 "vendor:x11/xlib"

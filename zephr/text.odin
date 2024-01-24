@@ -80,7 +80,7 @@ init_freetype :: proc(font_path: cstring) -> i32 {
 
   tex_width, tex_height: u32
   for i in 32..<128 {
-    if (FT.Load_Char(face, cast(u64)i, .RENDER) != 0) {
+    if (FT.Load_Char(face, cast(FT.ULong)i, .RENDER) != 0) {
       log.errorf("Failed to load glyph for char '0x%x'", i)
     }
 
@@ -95,7 +95,7 @@ init_freetype :: proc(font_path: cstring) -> i32 {
 
   for i in 32..<128 {
   /* while (glyph_idx) { */
-    if (FT.Load_Char(face, cast(u64)i, .RENDER) != 0) {
+    if (FT.Load_Char(face, cast(FT.ULong)i, .RENDER) != 0) {
       log.errorf("Failed to load glyph for char '0x%x'", i)
     }
 
@@ -334,6 +334,7 @@ draw_text_batch :: proc(batch: ^GlyphInstanceList) {
 
 get_glyph_instance_list_from_text :: proc(text: string, font_size: u32, constraints: UiConstraints, color: Color, alignment: Alignment) -> GlyphInstanceList {
   constraints := constraints
+  // TODO: this use_shader might be redundant
   use_shader(font_shader)
   text_color := Vec4{ cast(f32)color.r / 255, cast(f32)color.g / 255, cast(f32)color.b / 255, cast(f32)color.a / 255 }
 
@@ -424,4 +425,3 @@ add_text_instance :: proc(batch: ^GlyphInstanceList, text: string, font_size: u3
 
   delete(glyph_instance_list)
 }
-
