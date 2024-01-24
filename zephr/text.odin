@@ -334,7 +334,6 @@ draw_text_batch :: proc(batch: ^GlyphInstanceList) {
 
 get_glyph_instance_list_from_text :: proc(text: string, font_size: u32, constraints: UiConstraints, color: Color, alignment: Alignment) -> GlyphInstanceList {
   constraints := constraints
-  // TODO: this use_shader might be redundant
   use_shader(font_shader)
   text_color := Vec4{ cast(f32)color.r / 255, cast(f32)color.g / 255, cast(f32)color.b / 255, cast(f32)color.a / 255 }
 

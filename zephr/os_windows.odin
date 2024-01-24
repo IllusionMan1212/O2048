@@ -3,6 +3,7 @@
 package zephr
 
 import "core:log"
+import "core:fmt"
 import "core:strings"
 import "core:strconv"
 import "core:os"
@@ -114,9 +115,14 @@ init_gl :: proc(class_name: win32.wstring, window_title: win32.wstring, window_s
         cast(f32)win32.GetSystemMetrics(win32.SM_CYSCREEN),
     }
 
-
     win_x := screen_size.x / 2 - window_size.x / 2
     win_y := screen_size.y / 2 - window_size.y / 2
+
+    rect := win32.RECT{0, 0, cast(i32)window_size.x, cast(i32)window_size.y}
+    win32.AdjustWindowRect(&rect, win32.WS_OVERLAPPEDWINDOW, false)
+
+    win_width := rect.right - rect.left
+    win_height := rect.bottom - rect.top
 
     hwnd := win32.CreateWindowExW(
         0,
@@ -124,7 +130,7 @@ init_gl :: proc(class_name: win32.wstring, window_title: win32.wstring, window_s
         window_title,
         win32.WS_OVERLAPPEDWINDOW,
 
-        cast(i32)win_x, cast(i32)win_y, cast(i32)window_size.x, cast(i32)window_size.y,
+        cast(i32)win_x, cast(i32)win_y, win_width, win_height,
 
         nil,
         nil,
@@ -209,7 +215,7 @@ init_gl :: proc(class_name: win32.wstring, window_title: win32.wstring, window_s
 
     new_success := wglSwapIntervalEXT(1)
     if !new_success {
-        log.error("Failed to turn on v-sync")
+        log.error("Failed to enable v-sync")
     }
 
     gl.load_up_to(3, 3, win32.gl_set_proc_address)
@@ -221,6 +227,27 @@ init_gl :: proc(class_name: win32.wstring, window_title: win32.wstring, window_s
     gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 }
 
+// TODO: two solutions to the window_proc problem.
+// 1- set up an event queue where I push events here and process them in backend_get_os_events
+// 2- "handle" the events in window_proc by returning the value the system expects and then
+//    actually handle events in backend_get_os_events by reading the msg variable.
+window_proc :: proc(hwnd: win32.HWND, msg: win32.UINT, wparam: win32.WPARAM, lparam: win32.LPARAM) -> win32.LRESULT {
+    result: win32.LRESULT
+
+    switch msg {
+        case win32.WM_SIZE:
+            width := win32.LOWORD(auto_cast lparam)
+            height := win32.HIWORD(auto_cast lparam)
+            zephr_ctx.window.size = Vec2{cast(f32)width, cast(f32)height}
+            zephr_ctx.projection = orthographic_projection_2d(0, zephr_ctx.window.size.x, zephr_ctx.window.size.y, 0)
+            gl.Viewport(0, 0, cast(i32)zephr_ctx.window.size.x, cast(i32)zephr_ctx.window.size.y)
+        case:
+            result = win32.DefWindowProcW(hwnd, msg, wparam, lparam)
+    }
+
+    return result
+}
+
 backend_init :: proc(window_title: cstring, window_size: Vec2, icon_path: cstring, window_non_resizable: bool) {
     context.logger = logger
 
@@ -228,19 +255,17 @@ backend_init :: proc(window_title: cstring, window_size: Vec2, icon_path: cstrin
     window_title := win32.utf8_to_wstring(string(window_title))
 
     hInstance := win32.HINSTANCE(win32.GetModuleHandleW(nil))
-    //hIcon := win32.LoadImageW(nil, auto_cast win32._IDI_EXCLAMATION, win32.IMAGE_ICON, 0, 0, win32.LR_DEFAULTSIZE | win32.LR_SHARED) // works for system icons
     hIcon := win32.LoadImageW(nil, win32.utf8_to_wstring(string(icon_path)), win32.IMAGE_ICON, 0, 0, win32.LR_DEFAULTSIZE | win32.LR_LOADFROMFILE)
     wc := win32.WNDCLASSEXW {
         // TODO: we can define our own window_proc that can handle events like window resizing and stuff
         // we probably want a custom one.
         cbSize        = size_of(win32.WNDCLASSEXW),
         style         = win32.CS_HREDRAW | win32.CS_VREDRAW | win32.CS_OWNDC,
-        lpfnWndProc   = win32.DefWindowProcW,
+        lpfnWndProc   = cast(win32.WNDPROC)window_proc,
         hInstance     = hInstance,
         lpszClassName = class_name,
         hIcon         = cast(win32.HICON)hIcon,
         hIconSm       = cast(win32.HICON)hIcon, // TODO: maybe we can have a 16x16 icon here. can be used on linux too
-        //hCursor     = win32.LoadCursorW(hInstance, win32.utf8_to_wstring(string(win32.IDC_ARROW))),
     }
 
     status := win32.RegisterClassExW(&wc)
@@ -250,18 +275,21 @@ backend_init :: proc(window_title: cstring, window_size: Vec2, icon_path: cstrin
     }
 
     // Make process aware of system scaling per monitor
-    win32.SetThreadDpiAwarenessContext(win32.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
+    win32.SetProcessDpiAwarenessContext(win32.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
 
     init_legacy_gl(class_name, hInstance)
     init_gl(class_name, window_title, window_size, hInstance)
 }
 
 backend_get_os_events :: proc(e_out: ^Event) -> bool {
+    context.logger = logger
     msg: win32.MSG
 
     for win32.PeekMessageW(&msg, hwnd, 0, 0, win32.PM_REMOVE) != win32.FALSE {
         win32.TranslateMessage(&msg)
         win32.DispatchMessageW(&msg)
+
+        log.info(msg)
     }
     // TODO: somehow get the events from window proc here???
 
