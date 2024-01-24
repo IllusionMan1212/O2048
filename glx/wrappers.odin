@@ -1,3 +1,4 @@
+// +build linux
 package glx
 
 import x11 "vendor:x11/xlib"

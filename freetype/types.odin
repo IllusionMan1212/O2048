@@ -16,8 +16,7 @@ FT_Int  :: c.int
 FT_UInt  :: c.uint
 @private
 FT_Long  :: c.long
-@private
-FT_ULong :: c.ulong
+ULong :: c.ulong
 @private
 FT_String :: c.char
 @private
@@ -87,6 +86,8 @@ LoadFlags :: enum {
   FT_LOAD_TARGET_LCD_V        = (int(FT_Render_Mode_.LCD_V)  & 15) << 16,
 }
 
+#assert(size_of(OutlineFlags) == 8)
+
 @private
 OutlineFlags :: enum {
   NONE             = 0x0,
@@ -144,7 +145,7 @@ FT_CharMapRec_ :: struct {
 @private
 FT_CharMap :: ^FT_CharMapRec_
 
-#assert(size_of(FT_Bitmap_Size) == 32)
+#assert(size_of(FT_Bitmap_Size) == (16 when (size_of(FT_Pos) == 4) else 32))
 
 @private
 FT_Bitmap_Size :: struct {
@@ -180,7 +181,7 @@ FT_Vector :: struct {
   x, y: FT_Pos,
 }
 
-#assert(size_of(FT_Glyph_Metrics) == 64)
+#assert(size_of(FT_Glyph_Metrics) == (32 when (size_of(FT_Pos) == 4) else 64))
 
 @private
 FT_Glyph_Metrics :: struct {
@@ -210,6 +211,8 @@ FT_Outline :: struct {
   flags: OutlineFlags,
 }
 
+#assert(size_of(FT_Glyph_Format) == 8)
+
 @private
 FT_Glyph_Format :: enum {
   NONE = (0 << 24) | (0 << 16) | (0 << 8) | 0,
@@ -220,9 +223,11 @@ FT_Glyph_Format :: enum {
   PLOTTER    = ('p' << 24) | ('l' << 16) | ('o' << 8) | 't'
 }
 
-#assert(size_of(FT_GlyphSlotRec_) == 304)
+// linux: 304
+// windows: 248
+// windows: 236 packed
+#assert(size_of(FT_GlyphSlotRec_) == (248 when ODIN_OS == .Windows else 304))
 
-@private
 FT_GlyphSlotRec_ :: struct {
   library: Library,
   face: Face,
@@ -247,7 +252,7 @@ FT_GlyphSlotRec_ :: struct {
   subglyphs: FT_SubGlyph,
 
   control_data: rawptr,
-  control_len: i64,
+  control_len: c.long,
 
   lsb_delta: FT_Pos,
   rsb_delta: FT_Pos,
@@ -260,7 +265,7 @@ FT_GlyphSlotRec_ :: struct {
 @private
 FT_GlyphSlot :: ^FT_GlyphSlotRec_
 
-#assert(size_of(FT_Size_Metrics) == 56)
+#assert(size_of(FT_Size_Metrics) == (28 when size_of(FT_Pos) == 4 else 56))
 
 @private
 FT_Size_Metrics :: struct {
@@ -276,7 +281,10 @@ FT_Size_Metrics :: struct {
   max_advance: FT_Pos, /* max horizontal advance, in 26.6 pixels */
 }
 
-#assert(size_of(FT_SizeRec) == 88)
+// linux: 88
+// windows: 64 (has 4 bytes padding)
+// windows: 60 packed
+#assert(size_of(FT_SizeRec) == (64 when ODIN_OS == .Windows else 88))
 
 @private
 FT_SizeRec :: struct {
@@ -343,7 +351,10 @@ FT_ListRec :: struct {
   tail: FT_ListNode,
 }
 
-#assert(size_of(FT_FaceRec_) == 248)
+// linux: 248
+// windows: 216
+// windows packed: 204
+#assert(size_of(FT_FaceRec_) == 216)
 
 @private
 FT_FaceRec_ :: struct {
