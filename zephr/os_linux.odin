@@ -391,6 +391,8 @@ backend_swapbuffers :: proc() {
   glx.SwapBuffers(x11_display, x11_window)
 }
 
+// TODO: should we push the events to the event queue here as well??
+// I'm thinking yes just to keep it consistent with Windows but idk
 backend_get_os_events :: proc(e_out: ^Event) -> bool {
   context.logger = logger
   xev: x11.XEvent
@@ -501,6 +503,8 @@ backend_get_os_events :: proc(e_out: ^Event) -> bool {
         e_out.mouse.scroll_direction = .DOWN
         case cast(x11.MouseButton)8: // Back
         e_out.mouse.button = .BUTTON_BACK
+        // TODO: should we be setting these in zephr ??
+        // if yes then also set them for the other buttons
         zephr_ctx.mouse.button = .BUTTON_BACK
         case cast(x11.MouseButton)9: // Forward
         e_out.mouse.button = .BUTTON_FORWARD

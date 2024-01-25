@@ -3,6 +3,7 @@ package zephr
 import "core:fmt"
 import "core:log"
 import "core:os"
+import "core:container/queue"
 
 import x11 "vendor:x11/xlib"
 import gl "vendor:OpenGL"
@@ -354,14 +355,13 @@ Context :: struct {
   mouse: Mouse,
   keyboard: Keyboard,
   cursor: Cursor,
+  event_queue: queue.Queue(OsEvent),
   //cursors: [Cursor]x11.Cursor,
   ui: Ui,
 
   /* ZephrKeyboard keyboard; */
   /* XkbDescPtr xkb; */
   /* XIM xim; */
-  /* CoreStack(ZephrEvent) event_queue; */
-  /* u32 event_queue_cursor; */
 
   projection: Mat4,
 }
@@ -372,6 +372,8 @@ FNV_HASH32_INIT :: 0x811c9dc5
 FNV_HASH32_PRIME :: 0x01000193
 @private
 INIT_UI_STACK_SIZE :: 256
+@private
+EVENT_QUEUE_INIT_CAP :: 128
 
 when ODIN_DEBUG {
   @private
@@ -651,6 +653,8 @@ init :: proc(font_path: cstring, icon_path: cstring, window_title: cstring, wind
     // TODO: should I initalize the audio here or let the game handle that??
     //int res = audio_init();
     //CORE_ASSERT(res == 0, "Failed to initialize audio");
+
+    queue.init(&zephr_ctx.event_queue, EVENT_QUEUE_INIT_CAP)
 
     backend_init(window_title, window_size, icon_path, window_non_resizable)
 

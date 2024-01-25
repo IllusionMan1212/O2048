@@ -7,9 +7,16 @@ import "core:fmt"
 import "core:strings"
 import "core:strconv"
 import "core:os"
+import "core:container/queue"
 import win32 "core:sys/windows"
 
 import gl "vendor:OpenGL"
+
+OsEvent :: struct {
+    type: win32.UINT,
+    lparam: win32.LPARAM,
+    wparam: win32.WPARAM,
+}
 
 @(private="file")
 hwnd : win32.HWND
@@ -227,20 +234,55 @@ init_gl :: proc(class_name: win32.wstring, window_title: win32.wstring, window_s
     gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 }
 
-// TODO: two solutions to the window_proc problem.
-// 1- set up an event queue where I push events here and process them in backend_get_os_events
-// 2- "handle" the events in window_proc by returning the value the system expects and then
-//    actually handle events in backend_get_os_events by reading the msg variable.
+@(private="file")
+os_event_to_zephr_event :: proc(msg: win32.UINT) -> EventType {
+    switch msg {
+        case win32.WM_CLOSE: return .WINDOW_CLOSED
+        case win32.WM_SIZE: return .WINDOW_RESIZED
+        case win32.WM_MOUSEMOVE: return .MOUSE_MOVED
+        case win32.WM_MOUSEWHEEL: return .MOUSE_SCROLL
+        case win32.WM_LBUTTONDOWN: fallthrough
+        case win32.WM_MBUTTONDOWN: fallthrough
+        case win32.WM_RBUTTONDOWN: fallthrough
+        case win32.WM_XBUTTONDOWN: return .MOUSE_BUTTON_PRESSED
+        case win32.WM_LBUTTONUP: fallthrough
+        case win32.WM_MBUTTONUP: fallthrough
+        case win32.WM_RBUTTONUP: fallthrough
+        case win32.WM_XBUTTONUP: return .MOUSE_BUTTON_RELEASED
+        case win32.WM_SYSKEYDOWN: fallthrough
+        case win32.WM_KEYDOWN: return .KEY_PRESSED
+        case win32.WM_SYSKEYUP: fallthrough
+        case win32.WM_KEYUP: return .KEY_RELEASED
+    }
+
+    return .UNKNOWN
+}
+
 window_proc :: proc(hwnd: win32.HWND, msg: win32.UINT, wparam: win32.WPARAM, lparam: win32.LPARAM) -> win32.LRESULT {
     result: win32.LRESULT
 
     switch msg {
-        case win32.WM_SIZE:
-            width := win32.LOWORD(auto_cast lparam)
-            height := win32.HIWORD(auto_cast lparam)
-            zephr_ctx.window.size = Vec2{cast(f32)width, cast(f32)height}
-            zephr_ctx.projection = orthographic_projection_2d(0, zephr_ctx.window.size.x, zephr_ctx.window.size.y, 0)
-            gl.Viewport(0, 0, cast(i32)zephr_ctx.window.size.x, cast(i32)zephr_ctx.window.size.y)
+        case win32.WM_CLOSE: fallthrough
+        case win32.WM_SIZE: fallthrough
+        case win32.WM_MOUSEMOVE: fallthrough
+        case win32.WM_MOUSEWHEEL: fallthrough
+        case win32.WM_LBUTTONDOWN: fallthrough
+        case win32.WM_MBUTTONDOWN: fallthrough
+        case win32.WM_RBUTTONDOWN: fallthrough
+        case win32.WM_XBUTTONDOWN: fallthrough
+        case win32.WM_LBUTTONUP: fallthrough
+        case win32.WM_MBUTTONUP: fallthrough
+        case win32.WM_RBUTTONUP: fallthrough
+        case win32.WM_XBUTTONUP: fallthrough
+        case win32.WM_SYSKEYDOWN: fallthrough
+        case win32.WM_SYSKEYUP: fallthrough
+        case win32.WM_KEYDOWN: fallthrough
+        case win32.WM_KEYUP:
+            queue.push(&zephr_ctx.event_queue, OsEvent{
+                type = msg,
+                lparam = lparam,
+                wparam = wparam,
+            })
         case:
             result = win32.DefWindowProcW(hwnd, msg, wparam, lparam)
     }
@@ -257,8 +299,6 @@ backend_init :: proc(window_title: cstring, window_size: Vec2, icon_path: cstrin
     hInstance := win32.HINSTANCE(win32.GetModuleHandleW(nil))
     hIcon := win32.LoadImageW(nil, win32.utf8_to_wstring(string(icon_path)), win32.IMAGE_ICON, 0, 0, win32.LR_DEFAULTSIZE | win32.LR_LOADFROMFILE)
     wc := win32.WNDCLASSEXW {
-        // TODO: we can define our own window_proc that can handle events like window resizing and stuff
-        // we probably want a custom one.
         cbSize        = size_of(win32.WNDCLASSEXW),
         style         = win32.CS_HREDRAW | win32.CS_VREDRAW | win32.CS_OWNDC,
         lpfnWndProc   = cast(win32.WNDPROC)window_proc,
@@ -288,10 +328,135 @@ backend_get_os_events :: proc(e_out: ^Event) -> bool {
     for win32.PeekMessageW(&msg, hwnd, 0, 0, win32.PM_REMOVE) != win32.FALSE {
         win32.TranslateMessage(&msg)
         win32.DispatchMessageW(&msg)
-
-        log.info(msg)
     }
-    // TODO: somehow get the events from window proc here???
+
+    for queue.len(zephr_ctx.event_queue) != 0 {
+        event := queue.pop_front(&zephr_ctx.event_queue)
+
+        e_out.type = os_event_to_zephr_event(event.type)
+
+        switch event.type {
+            case win32.WM_CLOSE:
+                return true
+            case win32.WM_SIZE:
+                width := win32.LOWORD(auto_cast event.lparam)
+                height := win32.HIWORD(auto_cast event.lparam)
+                zephr_ctx.window.size = Vec2{cast(f32)width, cast(f32)height}
+                zephr_ctx.projection = orthographic_projection_2d(0, zephr_ctx.window.size.x, zephr_ctx.window.size.y, 0)
+                gl.Viewport(0, 0, cast(i32)zephr_ctx.window.size.x, cast(i32)zephr_ctx.window.size.y)
+
+                e_out.window.width = cast(u32)width
+                e_out.window.height = cast(u32)height
+
+                return true
+            case win32.WM_LBUTTONDOWN, win32.WM_LBUTTONUP:
+                x := win32.GET_X_LPARAM(event.lparam)
+                y := win32.GET_Y_LPARAM(event.lparam)
+
+                e_out.mouse.pos = Vec2{cast(f32)x, cast(f32)y}
+
+                e_out.mouse.button = .BUTTON_LEFT
+                zephr_ctx.mouse.button = .BUTTON_LEFT
+
+                if event.type == win32.WM_LBUTTONDOWN {
+                    zephr_ctx.mouse.pressed = true
+                } else {
+                    zephr_ctx.mouse.released = true
+                    zephr_ctx.mouse.pressed = false
+                }
+
+                return true
+            case win32.WM_MBUTTONDOWN, win32.WM_MBUTTONUP:
+                x := win32.GET_X_LPARAM(event.lparam)
+                y := win32.GET_Y_LPARAM(event.lparam)
+
+                e_out.mouse.pos = Vec2{cast(f32)x, cast(f32)y}
+
+                e_out.mouse.button = .BUTTON_MIDDLE
+                zephr_ctx.mouse.button = .BUTTON_MIDDLE
+
+                if event.type == win32.WM_MBUTTONDOWN {
+                    zephr_ctx.mouse.pressed = true
+                } else {
+                    zephr_ctx.mouse.released = true
+                    zephr_ctx.mouse.pressed = false
+                }
+
+                return true
+            case win32.WM_RBUTTONDOWN, win32.WM_RBUTTONUP:
+                x := win32.GET_X_LPARAM(event.lparam)
+                y := win32.GET_Y_LPARAM(event.lparam)
+
+                e_out.mouse.pos = Vec2{cast(f32)x, cast(f32)y}
+
+                e_out.mouse.button = .BUTTON_RIGHT
+                zephr_ctx.mouse.button = .BUTTON_RIGHT
+
+                if event.type == win32.WM_RBUTTONDOWN {
+                    zephr_ctx.mouse.pressed = true
+                } else {
+                    zephr_ctx.mouse.released = true
+                    zephr_ctx.mouse.pressed = false
+                }
+
+                return true
+            case win32.WM_XBUTTONDOWN, win32.WM_XBUTTONUP:
+                x := win32.GET_X_LPARAM(event.lparam)
+                y := win32.GET_Y_LPARAM(event.lparam)
+
+                e_out.mouse.pos = Vec2{cast(f32)x, cast(f32)y}
+
+                btn := win32.HIWORD(auto_cast event.wparam)
+
+                if btn == win32.XBUTTON1 {
+                    e_out.mouse.button = .BUTTON_BACK
+                    zephr_ctx.mouse.button = .BUTTON_BACK
+                } else if btn == win32.XBUTTON2 {
+                    e_out.mouse.button = .BUTTON_FORWARD
+                    zephr_ctx.mouse.button = .BUTTON_FORWARD
+                }
+
+                if event.type == win32.WM_XBUTTONDOWN {
+                    zephr_ctx.mouse.pressed = true
+                } else {
+                    zephr_ctx.mouse.released = true
+                    zephr_ctx.mouse.pressed = false
+                }
+
+                return true
+            case win32.WM_MOUSEMOVE:
+                x := win32.GET_X_LPARAM(event.lparam)
+                y := win32.GET_Y_LPARAM(event.lparam)
+
+                zephr_ctx.mouse.pos = Vec2{cast(f32)x, cast(f32)y}
+                e_out.mouse.pos = zephr_ctx.mouse.pos
+
+                return true
+            case win32.WM_MOUSEWHEEL:
+                // This will be a multiple of win32.WHEEL_DELTA which is 120
+                wheel_delta := win32.GET_WHEEL_DELTA_WPARAM(event.wparam)
+
+                e_out.mouse.scroll_direction = .UP if (wheel_delta > 0) else .DOWN
+
+                return true
+            case win32.WM_SYSKEYDOWN: fallthrough
+            case win32.WM_KEYDOWN:
+                log.debug(event.lparam)
+                // Bits 16-23 hold the scancode
+                system_scancode := (event.lparam & 0xFF0000) >> 16
+
+                scancode := scan1_scancode_to_zephr_scancode_map[system_scancode]
+
+                log.debug(system_scancode)
+                log.debug(scancode)
+                // TODO:
+            case win32.WM_SYSKEYUP: fallthrough
+            case win32.WM_KEYUP:
+                // TODO:
+                // 0101 0010
+                //log.debug("released key")
+        }
+    }
 
     return false
 }
@@ -305,4 +470,178 @@ backend_shutdown :: proc() {
 
 backend_swapbuffers :: proc() {
     win32.SwapBuffers(device_ctx)
+}
+
+// https://learn.microsoft.com/en-us/windows/win32/inputdev/about-keyboard-input#scan-codes
+// https://download.microsoft.com/download/1/6/1/161ba512-40e2-4cc9-843a-923143f3456c/translate.pdf
+@(private="file")
+scan1_scancode_to_zephr_scancode_map :: proc(scancode: u8, is_extended: bool) -> Scancode {
+    switch scancode {
+        case 0: return .NULL
+
+        case 0x1E: return .A
+        case 0x30: return .B
+        case 0x2E: return .C
+        case 0x20: return .D
+        case 0x12: return .E
+        case 0x21: return .F
+        case 0x22: return .G
+        case 0x23: return .H
+        case 0x17: return .I
+        case 0x24: return .J
+        case 0x25: return .K
+        case 0x26: return .L
+        case 0x32: return .M
+        case 0x31: return .N
+        case 0x18: return .O
+        case 0x19: return .P
+        case 0x10: return .Q
+        case 0x13: return .R
+        case 0x1F: return .S
+        case 0x14: return .T
+        case 0x16: return .U
+        case 0x2F: return .V
+        case 0x11: return .W
+        case 0x2D: return .X
+        case 0x15: return .Y
+        case 0x2C: return .Z
+
+        case 0x02: return .KEY_1
+        case 0x03: return .KEY_2
+        case 0x04: return .KEY_3
+        case 0x05: return .KEY_4
+        case 0x06: return .KEY_5
+        case 0x07: return .KEY_6
+        case 0x08: return .KEY_7
+        case 0x09: return .KEY_8
+        case 0x0A: return .KEY_9
+        case 0x0B: return .KEY_0
+
+        case 0x1C: return .ENTER
+        case 0x01: return .ESCAPE
+        case 0x0E: return .BACKSPACE // Says "Keyboard Delete" on microsoft.com but it's actually backspace
+        case 0x0F: return .TAB
+        case 0x39: return .SPACE
+
+        case 0x0C: return .MINUS
+        case 0x0D: return .EQUALS
+        case 0x1A: return .LEFT_BRACKET
+        case 0x1B: return .RIGHT_BRACKET
+        case 0x2B: return .BACKSLASH
+        //case 0x2B: return = .NON_US_HASH, // European keyboards have a hash instead of a backslash. Maps to a different HID scancode
+        case 0x27: return .SEMICOLON
+        case 0x28: return .APOSTROPHE
+        case 0x29: return .GRAVE
+        case 0x33: return .COMMA
+        case 0x34: return .PERIOD
+        case 0x35: return .SLASH
+
+        case 0x3A: return .CAPS_LOCK
+
+        case 0x3B: return .F1
+        case 0x3C: return .F2
+        case 0x3D: return .F3
+        case 0x3E: return .F4
+        case 0x3F: return .F5
+        case 0x40: return .F6
+        case 0x41: return .F7
+        case 0x42: return .F8
+        case 0x43: return .F9
+        case 0x44: return .F10
+        case 0x57: return .F11
+        case 0x58: return .F12
+
+        case 0x54: return .PRINT_SCREEN
+        //case 0xE037 = .PRINT_SCREEN, // SysRq ???
+        case 0x46: return .SCROLL_LOCK
+        case 0x45: return .PAUSE
+        //case 0xE046 = .PAUSE, // Break ??
+        //case 0xE11D45 = .PAUSE, // Some legacy stuff ???
+        case 0x52:
+            // INSERT
+            // KP_0
+        case 0x47:
+            // HOME
+            // KP_7
+        case 0x49:
+            // PAGE_UP
+            // KP_9
+        case 0x53:
+            // DELETE
+            // KP_PERIOD
+        case 0x4F:
+            // END
+            // KP_1
+        case 0x51:
+            // PAGE_DOWN
+            // KP_3
+        case 0x4D:
+            // RIGHT
+            // KP_6
+        case 0x4B:
+            // LEFT
+            // KP_4
+        case 0x50:
+            // DOWN
+            // KP_2
+        case 0xE048:
+            // UP
+            // KP_8
+    }
+
+
+
+
+
+    //0x45 = .NUM_LOCK_OR_CLEAR, // conflicts with Pause, Pause doesn't have the extended bit set. don't know about this
+    //0xE045 = .NUM_LOCK_OR_CLEAR, // Legacy stuff
+    0xE035 = .KP_DIVIDE,
+    0x37 = .KP_MULTIPLY,
+    0x4A = .KP_MINUS,
+    0x4E = .KP_PLUS,
+    0xE01C = .KP_ENTER,
+    0x4C = .KP_5,
+
+    0x56 = .NON_US_BACKSLASH,
+    0xE05D = .APPLICATION,
+    0xE05E = .POWER,
+    0x59 = .KP_EQUALS,
+    0x64 = .F13,
+    0x65 = .F14,
+    0x66 = .F15,
+    0x67 = .F16,
+    0x68 = .F17,
+    0x69 = .F18,
+    0x6A = .F19,
+    0x6B = .F20,
+    0x6C = .F21,
+    0x6D = .F22,
+    0x6E = .F23,
+    0x76 = .F24,
+
+    0x7E = .KP_COMMA,
+    0x73 = .INTERNATIONAL1,
+    0x70 = .INTERNATIONAL2,
+    0x7D = .INTERNATIONAL3,
+    0x79 = .INTERNATIONAL4,
+    0x7B = .INTERNATIONAL5,
+    0x5C = .INTERNATIONAL6,
+    0x72 = .LANG1, // Only emitted on Key Release
+    0xF2 = .LANG1, // Legacy, Only emitted on Key Release
+    0x71 = .LANG2, // Only emitted on Key Release
+    0xF1 = .LANG2, // Legacy, Only emitted on Key Release
+    0x78 = .LANG3,
+    0x77 = .LANG4,
+    //0x76 = .LANG5, // Conflicts with F24
+
+    0x1D = .LEFT_CTRL,
+    0x2A = .LEFT_SHIFT,
+    0x38 = .LEFT_ALT,
+    0xE05B = .LEFT_META,
+    0xE01D = .RIGHT_CTRL,
+    0x36 = .RIGHT_SHIFT,
+    0xE038 = .RIGHT_ALT,
+    0xE05C = .RIGHT_META,
+    // End of Keyboard/Keypad section on microsoft.com
+    // We currently don't map or care about the Consumer section
 }
