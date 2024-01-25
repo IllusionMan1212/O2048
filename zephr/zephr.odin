@@ -356,7 +356,7 @@ Context :: struct {
   keyboard: Keyboard,
   cursor: Cursor,
   event_queue: queue.Queue(OsEvent),
-  //cursors: [Cursor]x11.Cursor,
+  cursors: [Cursor]OsCursor,
   ui: Ui,
 
   /* ZephrKeyboard keyboard; */
@@ -666,15 +666,7 @@ init :: proc(font_path: cstring, icon_path: cstring, window_title: cstring, wind
     zephr_ctx.window.non_resizable = window_non_resizable
     zephr_ctx.projection = orthographic_projection_2d(0, window_size.x, window_size.y, 0)
 
-    // zephr_ctx.cursors[.ARROW] = x11.XCreateFontCursor(x11_display, .XC_left_ptr)
-    // zephr_ctx.cursors[.IBEAM] = x11.XCreateFontCursor(x11_display, .XC_xterm)
-    // zephr_ctx.cursors[.CROSSHAIR] = x11.XCreateFontCursor(x11_display, .XC_crosshair)
-    // zephr_ctx.cursors[.HAND] = x11.XCreateFontCursor(x11_display, .XC_hand1)
-    // zephr_ctx.cursors[.HRESIZE] = x11.XCreateFontCursor(x11_display, .XC_sb_h_double_arrow)
-    // zephr_ctx.cursors[.VRESIZE] = x11.XCreateFontCursor(x11_display, .XC_sb_v_double_arrow)
-
-    // non-standard cursors
-    // zephr_ctx.cursors[.DISABLED] = xcursor.LibraryLoadCursor(x11_display, "crossed_circle")
+    backend_init_cursors()
 
     zephr_ctx.screen_size = backend_get_screen_size()
     start_internal_timer()
@@ -727,149 +719,12 @@ swap_buffers :: proc() {
   }
 
   backend_swapbuffers()
-  //x11.XDefineCursor(x11_display, x11_window, zephr_ctx.cursors[zephr_ctx.cursor])
+  backend_set_cursor()
 }
 
 iter_events :: proc(e_out: ^Event) -> bool {
   return backend_get_os_events(e_out)
 }
-
-// iter_events :: proc(e_out: ^Event) -> bool {
-//   context.logger = logger
-//   xev: x11.XEvent
-
-//   for (cast(bool)x11.XPending(x11_display)) {
-//     x11.XNextEvent(x11_display, &xev)
-
-//     if xev.type == .ConfigureNotify {
-//       xce := xev.xconfigure
-
-//       if (xce.width != cast(i32)zephr_ctx.window.size.x || xce.height != cast(i32)zephr_ctx.window.size.y) {
-//         zephr_ctx.window.size = Vec2{cast(f32)xce.width, cast(f32)xce.height}
-//         zephr_ctx.projection = orthographic_projection_2d(0, zephr_ctx.window.size.x, zephr_ctx.window.size.y, 0)
-//         x11_resize_window()
-
-//         e_out.type = .WINDOW_RESIZED
-//         e_out.window.width = cast(u32)xce.width
-//         e_out.window.height = cast(u32)xce.height
-
-//         return true
-//       }
-//     } else if xev.type == .DestroyNotify {
-//       // window destroy event
-//       e_out.type = .WINDOW_CLOSED
-
-//       return true
-//     } else if xev.type == .ClientMessage {
-//       // window close event
-//       if (cast(x11.Atom)xev.xclient.data.l[0] == zephr_ctx.window_delete_atom) {
-//         e_out.type = .WINDOW_CLOSED
-
-//         return true
-//       }
-//     } else if xev.type == .KeyPress {
-//       xke := xev.xkey
-
-//       evdev_keycode := xke.keycode - 8
-//       scancode := evdev_scancode_to_zephr_scancode_map[evdev_keycode]
-
-//       e_out.type = .KEY_PRESSED
-//       e_out.key.scancode = scancode
-//       //e_out.key.code = keycode;
-//       e_out.key.mods = x11_mods_to_zephr_mods(scancode, true)
-
-//       return true
-//     } else if xev.type == .KeyRelease {
-//       xke := xev.xkey
-
-//       evdev_keycode := xke.keycode - 8
-//       scancode := evdev_scancode_to_zephr_scancode_map[evdev_keycode]
-
-//       e_out.type = .KEY_RELEASED
-//       e_out.key.scancode = scancode
-//       //e_out.key.code = keycode;
-//       e_out.key.mods = x11_mods_to_zephr_mods(scancode, false)
-
-//       return true
-//     } else if xev.type == .ButtonPress {
-//       e_out.type = .MOUSE_BUTTON_PRESSED
-//       e_out.mouse.pos = Vec2{cast(f32)xev.xbutton.x, cast(f32)xev.xbutton.y}
-//       zephr_ctx.mouse.pressed = true
-
-//       switch (xev.xbutton.button) {
-//         case .Button1:
-//         e_out.mouse.button = .BUTTON_LEFT
-//         zephr_ctx.mouse.button = .BUTTON_LEFT
-//         case .Button2:
-//         e_out.mouse.button = .BUTTON_MIDDLE
-//         zephr_ctx.mouse.button = .BUTTON_MIDDLE
-//         case .Button3:
-//         e_out.mouse.button = .BUTTON_RIGHT
-//         zephr_ctx.mouse.button = .BUTTON_RIGHT
-//         case .Button4:
-//         e_out.type = .MOUSE_SCROLL
-//         e_out.mouse.scroll_direction = .UP
-//         case .Button5:
-//         e_out.type = .MOUSE_SCROLL
-//         e_out.mouse.scroll_direction = .DOWN
-//         case cast(x11.MouseButton)8: // Back
-//         e_out.mouse.button = .BUTTON_BACK
-//         zephr_ctx.mouse.button = .BUTTON_BACK
-//         case cast(x11.MouseButton)9: // Forward
-//         e_out.mouse.button = .BUTTON_FORWARD
-//         zephr_ctx.mouse.button = .BUTTON_FORWARD
-//         case:
-//         log.warnf("Unknown mouse button pressed: %d", xev.xbutton.button)
-//       }
-
-//       return true
-//     } else if xev.type == .ButtonRelease {
-//       e_out.type = .MOUSE_BUTTON_RELEASED
-//       e_out.mouse.pos = Vec2{cast(f32)xev.xbutton.x, cast(f32)xev.xbutton.y}
-//       zephr_ctx.mouse.released = true
-//       zephr_ctx.mouse.pressed = false
-
-//       switch (xev.xbutton.button) {
-//         case .Button1:
-//         e_out.mouse.button = .BUTTON_LEFT
-//         case .Button2:
-//         e_out.mouse.button = .BUTTON_MIDDLE
-//         case .Button3:
-//         e_out.mouse.button = .BUTTON_RIGHT
-//         case .Button4:
-//         e_out.type = .MOUSE_SCROLL
-//         e_out.mouse.scroll_direction = .UP
-//         case .Button5:
-//         e_out.type = .MOUSE_SCROLL
-//         e_out.mouse.scroll_direction = .DOWN
-//         case cast(x11.MouseButton)8: // Back
-//         e_out.mouse.button = .BUTTON_BACK
-//         zephr_ctx.mouse.button = .BUTTON_BACK
-//         case cast(x11.MouseButton)9: // Forward
-//         e_out.mouse.button = .BUTTON_FORWARD
-//         zephr_ctx.mouse.button = .BUTTON_FORWARD
-//       }
-
-//       return true
-//     } else if xev.type == .MappingNotify {
-//       // input device mapping changed
-//       if (xev.xmapping.request != .MappingKeyboard) {
-//         break
-//       }
-//       x11.XRefreshKeyboardMapping(&xev.xmapping)
-//       /* x11_keyboard_map_update(); */
-//       break
-//     } else if xev.type == .MotionNotify {
-//       e_out.type = .MOUSE_MOVED
-//       e_out.mouse.pos = Vec2{cast(f32)xev.xmotion.x, cast(f32)xev.xmotion.y}
-//       zephr_ctx.mouse.pos = e_out.mouse.pos
-
-//       return true
-//     }
-//   }
-
-//   return false
-// }
 
 get_window_size :: proc() -> Vec2 {
   return zephr_ctx.window.size
@@ -923,4 +778,93 @@ logger_init :: proc() {
   term_logger := log.create_console_logger(opt = TerminalLoggerOpts)
 
   logger = log.create_multi_logger(file_logger, term_logger)
+}
+
+@private
+set_zephr_mods :: proc(scancode: Scancode, is_press: bool) -> KeyMod {
+  mods := zephr_ctx.keyboard.mods
+
+  if (is_press) {
+    if (scancode == .LEFT_SHIFT) {
+      mods |= {.LEFT_SHIFT, .SHIFT}
+    }
+    if (scancode == .RIGHT_SHIFT) {
+      mods |= {.RIGHT_SHIFT, .SHIFT}
+    }
+    if (scancode == .LEFT_CTRL) {
+      mods |= {.LEFT_CTRL, .CTRL}
+    }
+    if (scancode == .RIGHT_CTRL) {
+      mods |= {.RIGHT_CTRL, .CTRL}
+    }
+    if (scancode == .LEFT_ALT) {
+      mods |= {.LEFT_ALT, .ALT}
+    }
+    if (scancode == .RIGHT_ALT) {
+      mods |= {.RIGHT_ALT, .ALT}
+    }
+    if (scancode == .LEFT_META) {
+      mods |= {.LEFT_META, .META}
+    }
+    if (scancode == .RIGHT_META) {
+      mods |= {.RIGHT_META, .META}
+    }
+    if (scancode == .CAPS_LOCK) {
+      mods |= {.CAPS_LOCK}
+    }
+    if (scancode == .NUM_LOCK_OR_CLEAR) {
+      mods |= {.NUM_LOCK}
+    }
+  } else {
+    if (scancode == .LEFT_SHIFT) {
+      mods &= ~{.LEFT_SHIFT}
+    }
+    if (scancode == .RIGHT_SHIFT) {
+      mods &= ~{.RIGHT_SHIFT}
+    }
+    if (!(.RIGHT_SHIFT in mods) && !(.LEFT_SHIFT in mods)) {
+      mods &= ~{.SHIFT}
+    }
+
+    if (scancode == .LEFT_CTRL) {
+      mods &= ~{.LEFT_CTRL}
+    }
+    if (scancode == .RIGHT_CTRL) {
+      mods &= ~{.RIGHT_CTRL}
+    }
+    if (!(.RIGHT_CTRL in mods) && !(.LEFT_CTRL in mods)) {
+      mods &= ~{.CTRL}
+    }
+
+    if (scancode == .LEFT_ALT) {
+      mods &= ~{.LEFT_ALT}
+    }
+    if (scancode == .RIGHT_ALT) {
+      mods &= ~{.RIGHT_ALT}
+    }
+    if (!(.RIGHT_ALT in mods) && !(.LEFT_ALT in mods)) {
+      mods &= ~{.ALT}
+    }
+
+    if (scancode == .LEFT_META) {
+      mods &= ~{.LEFT_META}
+    }
+    if (scancode == .RIGHT_META) {
+      mods &= ~{.RIGHT_META}
+    }
+    if (!(.RIGHT_META in mods) && !(.LEFT_META in mods)) {
+      mods &= ~{.META}
+    }
+
+    if (scancode == .CAPS_LOCK) {
+      mods &= ~{.CAPS_LOCK}
+    }
+    if (scancode == .NUM_LOCK_OR_CLEAR) {
+      mods &= ~{.NUM_LOCK}
+    }
+  }
+
+  zephr_ctx.keyboard.mods = mods
+
+  return mods
 }

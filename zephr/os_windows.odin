@@ -3,7 +3,6 @@
 package zephr
 
 import "core:log"
-import "core:fmt"
 import "core:strings"
 import "core:strconv"
 import "core:os"
@@ -11,6 +10,15 @@ import "core:container/queue"
 import win32 "core:sys/windows"
 
 import gl "vendor:OpenGL"
+
+// BUG: setting the cursor every frame messes with the cursor for resizing when on the edge of the window
+// TODO: handle start window in fullscreen
+//       currently the way to "start" a window in fullscreen is to just create a regular window
+//       and immediately fullscreen it. This works fine but there's a moment where you can see the regular-sized window.
+//       Not a priority right now.
+// TODO: only log debug when ODIN_DEBUG is true
+
+OsCursor :: win32.HCURSOR
 
 OsEvent :: struct {
     type: win32.UINT,
@@ -41,7 +49,33 @@ backend_get_screen_size :: proc() -> Vec2 {
 }
 
 backend_toggle_fullscreen :: proc(fullscreen: bool) {
-    // TODO:
+    context.logger = logger
+    // TODO: handle multiple monitors
+
+    if fullscreen {
+        w := cast(i32)zephr_ctx.window.pre_fullscreen_size.x
+        h := cast(i32)zephr_ctx.window.pre_fullscreen_size.y
+
+        win_style := (win32.WS_OVERLAPPEDWINDOW if !zephr_ctx.window.non_resizable else win32.WS_OVERLAPPEDWINDOW & ~win32.WS_MAXIMIZEBOX & ~win32.WS_THICKFRAME) | win32.WS_VISIBLE
+
+        // Adjust the rect to account for the window titlebar and frame sizes
+        rect := win32.RECT{0, 0, w, h}
+        win32.AdjustWindowRect(&rect, win_style, false)
+
+        w = rect.right - rect.left
+        h = rect.bottom - rect.top
+        x := cast(i32)(zephr_ctx.screen_size.x / 2 - cast(f32)w / 2)
+        y := cast(i32)(zephr_ctx.screen_size.y / 2 - cast(f32)h / 2)
+
+        win32.SetWindowLongPtrW(hwnd, win32.GWL_STYLE, cast(win32.LONG_PTR)(win_style))
+        win32.SetWindowPos(hwnd, nil, x, y, w, h, win32.SWP_FRAMECHANGED)
+    } else {
+        zephr_ctx.window.pre_fullscreen_size = zephr_ctx.window.size
+        w := cast(i32)zephr_ctx.screen_size.x
+        h := cast(i32)zephr_ctx.screen_size.y
+        result := win32.SetWindowLongPtrW(hwnd, win32.GWL_STYLE, cast(win32.LONG_PTR)(win32.WS_VISIBLE | win32.WS_POPUPWINDOW))
+        win32.SetWindowPos(hwnd, win32.HWND_TOP, 0, 0, w, h, win32.SWP_FRAMECHANGED)
+    }
 }
 
 @(private="file")
@@ -116,7 +150,7 @@ init_legacy_gl :: proc(class_name: win32.wstring, hInstance: win32.HINSTANCE) {
 }
 
 @(private="file")
-init_gl :: proc(class_name: win32.wstring, window_title: win32.wstring, window_size: Vec2, hInstance: win32.HINSTANCE) {
+init_gl :: proc(class_name: win32.wstring, window_title: win32.wstring, window_size: Vec2, window_non_resizable: bool, hInstance: win32.HINSTANCE) {
     screen_size := Vec2{
         cast(f32)win32.GetSystemMetrics(win32.SM_CXSCREEN),
         cast(f32)win32.GetSystemMetrics(win32.SM_CYSCREEN),
@@ -131,11 +165,13 @@ init_gl :: proc(class_name: win32.wstring, window_title: win32.wstring, window_s
     win_width := rect.right - rect.left
     win_height := rect.bottom - rect.top
 
-    hwnd := win32.CreateWindowExW(
+    win_style := win32.WS_OVERLAPPEDWINDOW if !window_non_resizable else (win32.WS_OVERLAPPEDWINDOW & ~win32.WS_THICKFRAME & ~win32.WS_MAXIMIZEBOX)
+
+    hwnd = win32.CreateWindowExW(
         0,
         class_name,
         window_title,
-        win32.WS_OVERLAPPEDWINDOW,
+        win_style,
 
         cast(i32)win_x, cast(i32)win_y, win_width, win_height,
 
@@ -165,9 +201,7 @@ init_gl :: proc(class_name: win32.wstring, window_title: win32.wstring, window_s
         win32.WGL_DRAW_TO_WINDOW_ARB, 1,
         win32.WGL_SUPPORT_OPENGL_ARB, 1,
         win32.WGL_DOUBLE_BUFFER_ARB, 1,
-        // TODO: test to see if EXCHANGE actually causes problems in fullscreen
-        /* WGL_SWAP_EXCHANGE_ARB causes problems with window menu in fullscreen */
-        win32.WGL_SWAP_METHOD_ARB, win32.WGL_SWAP_COPY_ARB,
+        win32.WGL_SWAP_METHOD_ARB, win32.WGL_SWAP_EXCHANGE_ARB,
         win32.WGL_PIXEL_TYPE_ARB, win32.WGL_TYPE_RGBA_ARB,
         win32.WGL_ACCELERATION_ARB, win32.WGL_FULL_ACCELERATION_ARB,
         win32.WGL_COLOR_BITS_ARB, 32,
@@ -318,7 +352,7 @@ backend_init :: proc(window_title: cstring, window_size: Vec2, icon_path: cstrin
     win32.SetProcessDpiAwarenessContext(win32.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
 
     init_legacy_gl(class_name, hInstance)
-    init_gl(class_name, window_title, window_size, hInstance)
+    init_gl(class_name, window_title, window_size, window_non_resizable, hInstance)
 }
 
 backend_get_os_events :: proc(e_out: ^Event) -> bool {
@@ -441,20 +475,26 @@ backend_get_os_events :: proc(e_out: ^Event) -> bool {
                 return true
             case win32.WM_SYSKEYDOWN: fallthrough
             case win32.WM_KEYDOWN:
-                log.debug(event.lparam)
                 // Bits 16-23 hold the scancode
                 system_scancode := (event.lparam & 0xFF0000) >> 16
+                is_extended := event.lparam & (1 << 24) != 0
 
-                scancode := scan1_scancode_to_zephr_scancode_map[system_scancode]
+                scancode := scan1_scancode_to_zephr_scancode_map(auto_cast system_scancode, is_extended)
 
-                log.debug(system_scancode)
-                log.debug(scancode)
-                // TODO:
+                e_out.key.scancode = scancode
+                e_out.key.mods = set_zephr_mods(scancode, true)
+                return true
             case win32.WM_SYSKEYUP: fallthrough
             case win32.WM_KEYUP:
-                // TODO:
-                // 0101 0010
-                //log.debug("released key")
+                // Bits 16-23 hold the scancode
+                system_scancode := (event.lparam & 0xFF0000) >> 16
+                is_extended := event.lparam & (1 << 24) != 0
+
+                scancode := scan1_scancode_to_zephr_scancode_map(auto_cast system_scancode, is_extended)
+
+                e_out.key.scancode = scancode
+                e_out.key.mods = set_zephr_mods(scancode, false)
+                return true
         }
     }
 
@@ -476,6 +516,8 @@ backend_swapbuffers :: proc() {
 // https://download.microsoft.com/download/1/6/1/161ba512-40e2-4cc9-843a-923143f3456c/translate.pdf
 @(private="file")
 scan1_scancode_to_zephr_scancode_map :: proc(scancode: u8, is_extended: bool) -> Scancode {
+    context.logger = logger
+
     switch scancode {
         case 0: return .NULL
 
@@ -517,7 +559,7 @@ scan1_scancode_to_zephr_scancode_map :: proc(scancode: u8, is_extended: bool) ->
         case 0x0A: return .KEY_9
         case 0x0B: return .KEY_0
 
-        case 0x1C: return .ENTER
+        case 0x1C: return .KP_ENTER if is_extended else .ENTER
         case 0x01: return .ESCAPE
         case 0x0E: return .BACKSPACE // Says "Keyboard Delete" on microsoft.com but it's actually backspace
         case 0x0F: return .TAB
@@ -534,7 +576,7 @@ scan1_scancode_to_zephr_scancode_map :: proc(scancode: u8, is_extended: bool) ->
         case 0x29: return .GRAVE
         case 0x33: return .COMMA
         case 0x34: return .PERIOD
-        case 0x35: return .SLASH
+        case 0x35: return .KP_DIVIDE if is_extended else .SLASH
 
         case 0x3A: return .CAPS_LOCK
 
@@ -551,97 +593,95 @@ scan1_scancode_to_zephr_scancode_map :: proc(scancode: u8, is_extended: bool) ->
         case 0x57: return .F11
         case 0x58: return .F12
 
-        case 0x54: return .PRINT_SCREEN
-        //case 0xE037 = .PRINT_SCREEN, // SysRq ???
-        case 0x46: return .SCROLL_LOCK
-        case 0x45: return .PAUSE
-        //case 0xE046 = .PAUSE, // Break ??
+        case 0x54: return .PRINT_SCREEN // Only emitted on KeyRelease
+        case 0x46: return .PAUSE if is_extended else .SCROLL_LOCK
+        case 0x45: return .NUM_LOCK_OR_CLEAR if is_extended else .PAUSE
         //case 0xE11D45 = .PAUSE, // Some legacy stuff ???
-        case 0x52:
-            // INSERT
-            // KP_0
-        case 0x47:
-            // HOME
-            // KP_7
-        case 0x49:
-            // PAGE_UP
-            // KP_9
-        case 0x53:
-            // DELETE
-            // KP_PERIOD
-        case 0x4F:
-            // END
-            // KP_1
-        case 0x51:
-            // PAGE_DOWN
-            // KP_3
-        case 0x4D:
-            // RIGHT
-            // KP_6
-        case 0x4B:
-            // LEFT
-            // KP_4
-        case 0x50:
-            // DOWN
-            // KP_2
-        case 0xE048:
-            // UP
-            // KP_8
+        case 0x52: return .INSERT if is_extended else .KP_0
+        case 0x47: return .HOME if is_extended else .KP_7
+        case 0x49: return .PAGE_UP if is_extended else .KP_9
+        case 0x53: return .DELETE if is_extended else .KP_PERIOD
+        case 0x4F: return .END if is_extended else .KP_1
+        case 0x51: return .PAGE_DOWN if is_extended else .KP_3
+        case 0x4D: return .RIGHT if is_extended else .KP_6
+        case 0x4B: return .LEFT if is_extended else .KP_4
+        case 0x50: return .DOWN if is_extended else .KP_2
+        case 0x48: return .UP if is_extended else .KP_8
+        case 0x37: return .PRINT_SCREEN if is_extended else .KP_MULTIPLY
+        case 0x4A: return .KP_MINUS
+        case 0x4E: return .KP_PLUS
+        case 0x4C: return .KP_5
+
+        case 0x56: return .NON_US_BACKSLASH
+        case 0x5D:
+            if is_extended {
+                return .APPLICATION
+            } else {
+                log.warnf("Pressed unmapped key: %d. Extended key: %s", scancode, is_extended)
+            }
+        case 0x5E:
+            if is_extended {
+                return .POWER
+            } else {
+                log.warnf("Pressed unmapped key: %d. Extended key: %s", scancode, is_extended)
+            }
+        case 0x59: return .KP_EQUALS
+        case 0x64: return .F13
+        case 0x65: return .F14
+        case 0x66: return .F15
+        case 0x67: return .F16
+        case 0x68: return .F17
+        case 0x69: return .F18
+        case 0x6A: return .F19
+        case 0x6B: return .F20
+        case 0x6C: return .F21
+        case 0x6D: return .F22
+        case 0x6E: return .F23
+        case 0x76: return .F24
+
+        case 0x7E: return .KP_COMMA
+        case 0x73: return .INTERNATIONAL1
+        case 0x70: return .INTERNATIONAL2
+        case 0x7D: return .INTERNATIONAL3
+        case 0x79: return .INTERNATIONAL4
+        case 0x7B: return .INTERNATIONAL5
+        case 0x5C: return .RIGHT_META if is_extended else .INTERNATIONAL6
+        case 0x72: return .LANG1 // Only emitted on Key Release
+        case 0xF2: return .LANG1 // Legacy, Only emitted on Key Release
+        case 0x71: return .LANG2 // Only emitted on Key Release
+        case 0xF1: return .LANG2 // Legacy, Only emitted on Key Release
+        case 0x78: return .LANG3
+        case 0x77: return .LANG4
+        //case 0x76: return .LANG5 // Conflicts with F24
+
+        case 0x1D: return .RIGHT_CTRL if is_extended else .LEFT_CTRL
+        case 0x2A: return .LEFT_SHIFT
+        case 0x36: return .RIGHT_SHIFT
+        case 0x38: return .RIGHT_ALT if is_extended else .LEFT_ALT
+        case 0x5B:
+            if is_extended {
+                return .LEFT_META
+            } else {
+                log.warnf("Pressed unmapped key: %d. Extended key: %s", scancode, is_extended)
+            }
+        // End of Keyboard/Keypad section on microsoft.com
+        // We currently don't map or care about the Consumer section
     }
 
+    return .NULL
+}
+
+backend_set_cursor :: proc() {
+    win32.SetCursor(zephr_ctx.cursors[zephr_ctx.cursor])
+}
 
 
-
-
-    //0x45 = .NUM_LOCK_OR_CLEAR, // conflicts with Pause, Pause doesn't have the extended bit set. don't know about this
-    //0xE045 = .NUM_LOCK_OR_CLEAR, // Legacy stuff
-    0xE035 = .KP_DIVIDE,
-    0x37 = .KP_MULTIPLY,
-    0x4A = .KP_MINUS,
-    0x4E = .KP_PLUS,
-    0xE01C = .KP_ENTER,
-    0x4C = .KP_5,
-
-    0x56 = .NON_US_BACKSLASH,
-    0xE05D = .APPLICATION,
-    0xE05E = .POWER,
-    0x59 = .KP_EQUALS,
-    0x64 = .F13,
-    0x65 = .F14,
-    0x66 = .F15,
-    0x67 = .F16,
-    0x68 = .F17,
-    0x69 = .F18,
-    0x6A = .F19,
-    0x6B = .F20,
-    0x6C = .F21,
-    0x6D = .F22,
-    0x6E = .F23,
-    0x76 = .F24,
-
-    0x7E = .KP_COMMA,
-    0x73 = .INTERNATIONAL1,
-    0x70 = .INTERNATIONAL2,
-    0x7D = .INTERNATIONAL3,
-    0x79 = .INTERNATIONAL4,
-    0x7B = .INTERNATIONAL5,
-    0x5C = .INTERNATIONAL6,
-    0x72 = .LANG1, // Only emitted on Key Release
-    0xF2 = .LANG1, // Legacy, Only emitted on Key Release
-    0x71 = .LANG2, // Only emitted on Key Release
-    0xF1 = .LANG2, // Legacy, Only emitted on Key Release
-    0x78 = .LANG3,
-    0x77 = .LANG4,
-    //0x76 = .LANG5, // Conflicts with F24
-
-    0x1D = .LEFT_CTRL,
-    0x2A = .LEFT_SHIFT,
-    0x38 = .LEFT_ALT,
-    0xE05B = .LEFT_META,
-    0xE01D = .RIGHT_CTRL,
-    0x36 = .RIGHT_SHIFT,
-    0xE038 = .RIGHT_ALT,
-    0xE05C = .RIGHT_META,
-    // End of Keyboard/Keypad section on microsoft.com
-    // We currently don't map or care about the Consumer section
+backend_init_cursors :: proc() {
+  zephr_ctx.cursors[.ARROW] = auto_cast win32.LoadImageW(nil, auto_cast win32._IDC_ARROW, win32.IMAGE_CURSOR, 0, 0, win32.LR_DEFAULTSIZE | win32.LR_SHARED)
+  zephr_ctx.cursors[.IBEAM] = auto_cast win32.LoadImageW(nil, auto_cast win32._IDC_IBEAM, win32.IMAGE_CURSOR, 0, 0, win32.LR_DEFAULTSIZE | win32.LR_SHARED)
+  zephr_ctx.cursors[.CROSSHAIR] = auto_cast win32.LoadImageW(nil, auto_cast win32._IDC_CROSS, win32.IMAGE_CURSOR, 0, 0, win32.LR_DEFAULTSIZE | win32.LR_SHARED)
+  zephr_ctx.cursors[.HAND] = auto_cast win32.LoadImageW(nil, auto_cast win32._IDC_HAND, win32.IMAGE_CURSOR, 0, 0, win32.LR_DEFAULTSIZE | win32.LR_SHARED)
+  zephr_ctx.cursors[.HRESIZE] = auto_cast win32.LoadImageW(nil, auto_cast win32._IDC_SIZEWE, win32.IMAGE_CURSOR, 0, 0, win32.LR_DEFAULTSIZE | win32.LR_SHARED)
+  zephr_ctx.cursors[.VRESIZE] = auto_cast win32.LoadImageW(nil, auto_cast win32._IDC_SIZENS, win32.IMAGE_CURSOR, 0, 0, win32.LR_DEFAULTSIZE | win32.LR_SHARED)
+  zephr_ctx.cursors[.DISABLED] = auto_cast win32.LoadImageW(nil, auto_cast win32._IDC_NO, win32.IMAGE_CURSOR, 0, 0, win32.LR_DEFAULTSIZE | win32.LR_SHARED)
 }
