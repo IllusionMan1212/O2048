@@ -7,6 +7,8 @@ import x11 "vendor:x11/xlib"
 import "../glx"
 import "../xcursor"
 
+OsEvent :: x11.Cursor
+
 @(private="file")
 PropModeReplace :: 0
 @(private="file")
@@ -32,8 +34,7 @@ x11_go_fullscreen :: proc() {
   // and properly fullscreen the window
   size_hints := x11.XAllocSizeHints()
 
-  zephr_ctx.window.pre_fullscreen_size.x = zephr_ctx.window.size.x
-  zephr_ctx.window.pre_fullscreen_size.y = zephr_ctx.window.size.y
+  zephr_ctx.window.pre_fullscreen_size = zephr_ctx.window.size
   if (size_hints != nil) {
     size_hints.flags = {.PPosition, .PSize}
     size_hints.width = cast(i32)zephr_ctx.window.size.x
@@ -299,94 +300,6 @@ backend_shutdown :: proc() {
   x11.XCloseDisplay(x11_display)
 }
 
-@(private="file")
-x11_mods_to_zephr_mods :: proc(scancode: Scancode, is_press: bool) -> KeyMod {
-  mods := zephr_ctx.keyboard.mods
-
-  if (is_press) {
-    if (scancode == .LEFT_SHIFT) {
-      mods |= {.LEFT_SHIFT, .SHIFT}
-    }
-    if (scancode == .RIGHT_SHIFT) {
-      mods |= {.RIGHT_SHIFT, .SHIFT}
-    }
-    if (scancode == .LEFT_CTRL) {
-      mods |= {.LEFT_CTRL, .CTRL}
-    }
-    if (scancode == .RIGHT_CTRL) {
-      mods |= {.RIGHT_CTRL, .CTRL}
-    }
-    if (scancode == .LEFT_ALT) {
-      mods |= {.LEFT_ALT, .ALT}
-    }
-    if (scancode == .RIGHT_ALT) {
-      mods |= {.RIGHT_ALT, .ALT}
-    }
-    if (scancode == .LEFT_META) {
-      mods |= {.LEFT_META, .META}
-    }
-    if (scancode == .RIGHT_META) {
-      mods |= {.RIGHT_META, .META}
-    }
-    if (scancode == .CAPS_LOCK) {
-      mods |= {.CAPS_LOCK}
-    }
-    if (scancode == .NUM_LOCK_OR_CLEAR) {
-      mods |= {.NUM_LOCK}
-    }
-  } else {
-    if (scancode == .LEFT_SHIFT) {
-      mods &= ~{.LEFT_SHIFT}
-    }
-    if (scancode == .RIGHT_SHIFT) {
-      mods &= ~{.RIGHT_SHIFT}
-    }
-    if (!(.RIGHT_SHIFT in mods) && !(.LEFT_SHIFT in mods)) {
-      mods &= ~{.SHIFT}
-    }
-
-    if (scancode == .LEFT_CTRL) {
-      mods &= ~{.LEFT_CTRL}
-    }
-    if (scancode == .RIGHT_CTRL) {
-      mods &= ~{.RIGHT_CTRL}
-    }
-    if (!(.RIGHT_CTRL in mods) && !(.LEFT_CTRL in mods)) {
-      mods &= ~{.CTRL}
-    }
-
-    if (scancode == .LEFT_ALT) {
-      mods &= ~{.LEFT_ALT}
-    }
-    if (scancode == .RIGHT_ALT) {
-      mods &= ~{.RIGHT_ALT}
-    }
-    if (!(.RIGHT_ALT in mods) && !(.LEFT_ALT in mods)) {
-      mods &= ~{.ALT}
-    }
-
-    if (scancode == .LEFT_META) {
-      mods &= ~{.LEFT_META}
-    }
-    if (scancode == .RIGHT_META) {
-      mods &= ~{.RIGHT_META}
-    }
-    if (!(.RIGHT_META in mods) && !(.LEFT_META in mods)) {
-      mods &= ~{.META}
-    }
-
-    if (scancode == .CAPS_LOCK) {
-      mods &= ~{.CAPS_LOCK}
-    }
-    if (scancode == .NUM_LOCK_OR_CLEAR) {
-      mods &= ~{.NUM_LOCK}
-    }
-  }
-
-  zephr_ctx.keyboard.mods = mods
-  return mods
-}
-
 backend_swapbuffers :: proc() {
   glx.SwapBuffers(x11_display, x11_window)
 }
@@ -435,7 +348,7 @@ backend_get_os_events :: proc(e_out: ^Event) -> bool {
       e_out.type = .KEY_PRESSED
       e_out.key.scancode = scancode
       //e_out.key.code = keycode;
-      e_out.key.mods = x11_mods_to_zephr_mods(scancode, true)
+      e_out.key.mods = set_zephr_mods(scancode, true)
 
       return true
     } else if xev.type == .KeyRelease {
@@ -447,7 +360,7 @@ backend_get_os_events :: proc(e_out: ^Event) -> bool {
       e_out.type = .KEY_RELEASED
       e_out.key.scancode = scancode
       //e_out.key.code = keycode;
-      e_out.key.mods = x11_mods_to_zephr_mods(scancode, false)
+      e_out.key.mods = set_zephr_mods(scancode, false)
 
       return true
     } else if xev.type == .ButtonPress {
@@ -530,4 +443,20 @@ backend_get_os_events :: proc(e_out: ^Event) -> bool {
   }
 
   return false
+}
+
+backend_set_cursor :: proc() {
+  x11.XDefineCursor(x11_display, x11_window, zephr_ctx.cursors[zephr_ctx.cursor])
+}
+
+backend_init_cursors :: proc() {
+  zephr_ctx.cursors[.ARROW] = x11.XCreateFontCursor(x11_display, .XC_left_ptr)
+  zephr_ctx.cursors[.IBEAM] = x11.XCreateFontCursor(x11_display, .XC_xterm)
+  zephr_ctx.cursors[.CROSSHAIR] = x11.XCreateFontCursor(x11_display, .XC_crosshair)
+  zephr_ctx.cursors[.HAND] = x11.XCreateFontCursor(x11_display, .XC_hand1)
+  zephr_ctx.cursors[.HRESIZE] = x11.XCreateFontCursor(x11_display, .XC_sb_h_double_arrow)
+  zephr_ctx.cursors[.VRESIZE] = x11.XCreateFontCursor(x11_display, .XC_sb_v_double_arrow)
+
+  non-standard cursors
+  zephr_ctx.cursors[.DISABLED] = xcursor.LibraryLoadCursor(x11_display, "crossed_circle")
 }
