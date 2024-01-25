@@ -5,9 +5,7 @@ import "core:log"
 import "core:os"
 import "core:container/queue"
 
-import x11 "vendor:x11/xlib"
 import gl "vendor:OpenGL"
-import "vendor:stb/image"
 
 Cursor :: enum {
   ARROW,
@@ -347,7 +345,6 @@ Keyboard :: struct {
 }
 
 Context :: struct {
-  //window_delete_atom: x11.Atom,
   should_quit: bool,
   screen_size: Vec2,
   window: Window,

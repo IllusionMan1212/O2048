@@ -73,7 +73,6 @@ neighbors := [4]zephr.Vec2 {
   {0, 1},  // down
 }
 
-// nocheckin
 gameover_anim_time: time.Duration = 0
 
 @private
