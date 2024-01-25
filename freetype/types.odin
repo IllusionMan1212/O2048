@@ -145,7 +145,7 @@ FT_CharMapRec_ :: struct {
 @private
 FT_CharMap :: ^FT_CharMapRec_
 
-#assert(size_of(FT_Bitmap_Size) == (16 when (size_of(FT_Pos) == 4) else 32))
+#assert(size_of(FT_Bitmap_Size) == (16 when (ODIN_OS == .Windows) else 32))
 
 @private
 FT_Bitmap_Size :: struct {
@@ -166,7 +166,7 @@ FT_Generic :: struct {
   finalizer: ^proc(object: rawptr),
 }
 
-#assert(size_of(FT_BBox) == (16 when (size_of(FT_Pos) == 4) else 32))
+#assert(size_of(FT_BBox) == (16 when (ODIN_OS == .Windows) else 32))
 
 @private
 FT_BBox :: struct {
@@ -174,14 +174,14 @@ FT_BBox :: struct {
   xMax, yMax: FT_Pos,
 }
 
-#assert(size_of(FT_Vector) == (8 when (size_of(FT_Pos) == 4) else 16))
+#assert(size_of(FT_Vector) == (8 when (ODIN_OS == .Windows) else 16))
 
 @private
 FT_Vector :: struct {
   x, y: FT_Pos,
 }
 
-#assert(size_of(FT_Glyph_Metrics) == (32 when (size_of(FT_Pos) == 4) else 64))
+#assert(size_of(FT_Glyph_Metrics) == (32 when (ODIN_OS == .Windows) else 64))
 
 @private
 FT_Glyph_Metrics :: struct {
@@ -226,7 +226,7 @@ FT_Glyph_Format :: enum {
 // linux: 304
 // windows: 248
 // windows: 236 packed
-#assert(size_of(FT_GlyphSlotRec_) == (248 when ODIN_OS == .Windows else 304))
+#assert(size_of(FT_GlyphSlotRec_) == (248 when (ODIN_OS == .Windows) else 304))
 
 FT_GlyphSlotRec_ :: struct {
   library: Library,
@@ -265,7 +265,7 @@ FT_GlyphSlotRec_ :: struct {
 @private
 FT_GlyphSlot :: ^FT_GlyphSlotRec_
 
-#assert(size_of(FT_Size_Metrics) == (28 when size_of(FT_Pos) == 4 else 56))
+#assert(size_of(FT_Size_Metrics) == (28 when (ODIN_OS == .Windows) else 56))
 
 @private
 FT_Size_Metrics :: struct {
@@ -284,7 +284,7 @@ FT_Size_Metrics :: struct {
 // linux: 88
 // windows: 64 (has 4 bytes padding)
 // windows: 60 packed
-#assert(size_of(FT_SizeRec) == (64 when ODIN_OS == .Windows else 88))
+#assert(size_of(FT_SizeRec) == (64 when (ODIN_OS == .Windows) else 88))
 
 @private
 FT_SizeRec :: struct {
@@ -354,7 +354,7 @@ FT_ListRec :: struct {
 // linux: 248
 // windows: 216
 // windows packed: 204
-#assert(size_of(FT_FaceRec_) == 216)
+#assert(size_of(FT_FaceRec_) == (216 when (ODIN_OS == .Windows) else 248))
 
 @private
 FT_FaceRec_ :: struct {

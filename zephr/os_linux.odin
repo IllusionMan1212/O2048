@@ -2,12 +2,19 @@
 // +private
 package zephr
 
+import "core:log"
+
 import x11 "vendor:x11/xlib"
+import gl "vendor:OpenGL"
+import "vendor:stb/image"
 
 import "../glx"
 import "../xcursor"
 
-OsEvent :: x11.Cursor
+// TODO: In the future, I should either push events to the event queue here or
+//       make the queue a windows-only global.
+OsEvent :: x11.XEvent
+OsCursor :: x11.Cursor
 
 @(private="file")
 PropModeReplace :: 0
@@ -26,6 +33,8 @@ x11_window   : x11.Window
 x11_colormap : x11.Colormap
 @(private="file")
 glx_context  : glx.Context
+@(private="file")
+window_delete_atom : x11.Atom
 
 @(private="file")
 x11_go_fullscreen :: proc() {
@@ -178,7 +187,7 @@ x11_create_window :: proc(window_title: cstring, window_size: Vec2, icon_path: c
 
   wm_delete_window := x11.XInternAtom(x11_display, "WM_DELETE_WINDOW", false)
   x11.XSetWMProtocols(x11_display, x11_window, &wm_delete_window, 1)
-  zephr_ctx.window_delete_atom = wm_delete_window
+  window_delete_atom = wm_delete_window
 
   // set window name
   {
@@ -334,7 +343,7 @@ backend_get_os_events :: proc(e_out: ^Event) -> bool {
       return true
     } else if xev.type == .ClientMessage {
       // window close event
-      if (cast(x11.Atom)xev.xclient.data.l[0] == zephr_ctx.window_delete_atom) {
+      if (cast(x11.Atom)xev.xclient.data.l[0] == window_delete_atom) {
         e_out.type = .WINDOW_CLOSED
 
         return true
@@ -457,6 +466,6 @@ backend_init_cursors :: proc() {
   zephr_ctx.cursors[.HRESIZE] = x11.XCreateFontCursor(x11_display, .XC_sb_h_double_arrow)
   zephr_ctx.cursors[.VRESIZE] = x11.XCreateFontCursor(x11_display, .XC_sb_v_double_arrow)
 
-  non-standard cursors
+  // non-standard cursors
   zephr_ctx.cursors[.DISABLED] = xcursor.LibraryLoadCursor(x11_display, "crossed_circle")
 }
