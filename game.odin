@@ -578,8 +578,8 @@ update_positions :: proc(delta_t: time.Duration) {
             continue
           }
           if src.anim_timer < TILE_ANIM_DURATION {
-            src.position.x = math.lerp(src.start_pos.x, src.new_pos.x, zephr.ease_out_cubic(cast(f32)src.anim_timer / cast(f32)TILE_ANIM_DURATION))
-            src.position.y = math.lerp(src.start_pos.y, src.new_pos.y, zephr.ease_out_cubic(cast(f32)src.anim_timer / cast(f32)TILE_ANIM_DURATION))
+            src.position.x = math.lerp(src.start_pos.x, src.new_pos.x, cast(f32)zephr.ease_in_out_back(cast(f64)src.anim_timer / cast(f64)TILE_ANIM_DURATION))
+            src.position.y = math.lerp(src.start_pos.y, src.new_pos.y, cast(f32)zephr.ease_in_out_back(cast(f64)src.anim_timer / cast(f64)TILE_ANIM_DURATION))
             src.anim_timer += delta_t
           } else {
             dest := &game.board[cast(int)src.new_pos.x][cast(int)src.new_pos.y]
@@ -619,8 +619,8 @@ update_positions :: proc(delta_t: time.Duration) {
             continue
           }
           if src.anim_timer < TILE_ANIM_DURATION {
-            src.position.x = math.lerp(src.start_pos.x, src.new_pos.x, zephr.ease_out_cubic(cast(f32)src.anim_timer / cast(f32)TILE_ANIM_DURATION))
-            src.position.y = math.lerp(src.start_pos.y, src.new_pos.y, zephr.ease_out_cubic(cast(f32)src.anim_timer / cast(f32)TILE_ANIM_DURATION))
+            src.position.x = math.lerp(src.start_pos.x, src.new_pos.x, cast(f32)zephr.ease_in_out_back(cast(f64)src.anim_timer / cast(f64)TILE_ANIM_DURATION))
+            src.position.y = math.lerp(src.start_pos.y, src.new_pos.y, cast(f32)zephr.ease_in_out_back(cast(f64)src.anim_timer / cast(f64)TILE_ANIM_DURATION))
             src.anim_timer += delta_t
           } else {
             dest := &game.board[cast(int)src.new_pos.x][cast(int)src.new_pos.y]
@@ -660,8 +660,8 @@ update_positions :: proc(delta_t: time.Duration) {
             continue
           }
           if src.anim_timer < TILE_ANIM_DURATION {
-            src.position.x = math.lerp(src.start_pos.x, src.new_pos.x, zephr.ease_out_cubic(cast(f32)src.anim_timer / cast(f32)TILE_ANIM_DURATION))
-            src.position.y = math.lerp(src.start_pos.y, src.new_pos.y, zephr.ease_out_cubic(cast(f32)src.anim_timer / cast(f32)TILE_ANIM_DURATION))
+            src.position.x = math.lerp(src.start_pos.x, src.new_pos.x, cast(f32)zephr.ease_in_out_back(cast(f64)src.anim_timer / cast(f64)TILE_ANIM_DURATION))
+            src.position.y = math.lerp(src.start_pos.y, src.new_pos.y, cast(f32)zephr.ease_in_out_back(cast(f64)src.anim_timer / cast(f64)TILE_ANIM_DURATION))
             src.anim_timer += delta_t
           } else {
             dest := &game.board[cast(int)src.new_pos.x][cast(int)src.new_pos.y]
@@ -701,8 +701,8 @@ update_positions :: proc(delta_t: time.Duration) {
             continue
           }
           if src.anim_timer < TILE_ANIM_DURATION {
-            src.position.x = math.lerp(src.start_pos.x, src.new_pos.x, zephr.ease_out_cubic(cast(f32)src.anim_timer / cast(f32)TILE_ANIM_DURATION))
-            src.position.y = math.lerp(src.start_pos.y, src.new_pos.y, zephr.ease_out_cubic(cast(f32)src.anim_timer / cast(f32)TILE_ANIM_DURATION))
+            src.position.x = math.lerp(src.start_pos.x, src.new_pos.x, cast(f32)zephr.ease_in_out_back(cast(f64)src.anim_timer / cast(f64)TILE_ANIM_DURATION))
+            src.position.y = math.lerp(src.start_pos.y, src.new_pos.y, cast(f32)zephr.ease_in_out_back(cast(f64)src.anim_timer / cast(f64)TILE_ANIM_DURATION))
             src.anim_timer += delta_t
           } else {
             dest := &game.board[cast(int)src.new_pos.x][cast(int)src.new_pos.y]

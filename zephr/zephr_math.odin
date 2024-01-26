@@ -194,3 +194,14 @@ ease_out_bounce :: proc(t: $T) -> T where intrinsics.type_is_numeric(T) {
     return n1 * (t) * t + 0.984375;
   }
 }
+
+ease_in_out_quint :: proc(t: f32) -> f32 {
+  return t < 0.5 ? 16 * t * t * t * t * t : 1 - math.pow(-2 * t + 2, 5) / 2
+}
+
+ease_in_out_back :: proc(t: f64) -> f64 {
+  c1 := 1.70158;
+  c2 := c1 * 1.525;
+
+  return (math.pow(2 * t, 2) * ((c2 + 1) * 2 * t - c2)) / 2 if t < 0.5 else (math.pow(2 * t - 2, 2) * ((c2 + 1) * (t * 2 - 2) + c2) + 2) / 2
+}
