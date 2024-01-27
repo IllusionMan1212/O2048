@@ -400,7 +400,6 @@ reset_game :: proc() {
       game.board[y][x].value = 0
       game.board[y][x].new_value = 0
       game.board[y][x].merged = false
-      delete(game.board[y][x].emitter.particles)
       game.board[y][x].emitter = ParticleEmitter{}
     }
   }

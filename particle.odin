@@ -5,6 +5,9 @@ import "core:time"
 
 import "zephr"
 
+@private
+MAX_PARTICLES :: 500
+
 Particle :: struct {
     pos: zephr.Vec2,
     vel: zephr.Vec2,
@@ -15,7 +18,7 @@ Particle :: struct {
 
 ParticleEmitter :: struct {
     pos: zephr.Vec2,
-    particles: [dynamic]Particle,
+    particles: [MAX_PARTICLES]Particle,
     duration: time.Duration,
     spawn_rate: u32,
 }
@@ -27,7 +30,7 @@ last_emitted_particle_idx: int = 0
 particle_time: time.Duration = 0
 
 @private
-update_particles :: proc(delta_t: time.Duration, particles: ^[dynamic]Particle, start_pos: zephr.Vec2) {
+update_particles :: proc(delta_t: time.Duration, particles: ^[MAX_PARTICLES]Particle, start_pos: zephr.Vec2) {
     delta_t_f := cast(f32)time.duration_seconds(delta_t)
 
     for p in particles {
@@ -46,9 +49,9 @@ update_particles :: proc(delta_t: time.Duration, particles: ^[dynamic]Particle, 
 }
 
 @private
-find_first_dead_particle :: proc(particles: [dynamic]Particle) -> int {
+find_first_dead_particle :: proc(particles: [MAX_PARTICLES]Particle) -> int {
     // search from last emitted particle, should return almost immediately 
-    for i in last_emitted_particle_idx..<cap(particles) {
+    for i in last_emitted_particle_idx..<MAX_PARTICLES {
         if particles[i].life <= 0 {
             last_emitted_particle_idx = i
             return i
@@ -82,13 +85,13 @@ update_emitter :: proc(delta_t: time.Duration, emitter: ^ParticleEmitter) {
                 offset := cast(f32)rand.int_max(100) - 50
                 rand_velocity := zephr.Vec2{rand.float32_range(-500.0, 500.0) * random / 20, -rand.float32_range(-500.0, 500.0) * random / 20}
                 found_dead_particle_idx := find_first_dead_particle(emitter.particles)
-                assign_at(&emitter.particles, found_dead_particle_idx, Particle{
+                emitter.particles[found_dead_particle_idx] = Particle{
                     pos = emitter.pos,
                     vel = rand_velocity,
                     color = zephr.COLOR_WHITE,
                     size = 1,
                     life = time.Millisecond * 500,
-                })
+                }
             }
             particle_time -= time.Millisecond * 16
         }
@@ -98,14 +101,6 @@ update_emitter :: proc(delta_t: time.Duration, emitter: ^ParticleEmitter) {
 }
 
 emitter_start :: proc(emitter: ^ParticleEmitter, capacity: int, pos: zephr.Vec2, duration: time.Duration, spawn_rate: u32 = 3) {
-    // Should happen in an init function but this works too so idc
-    // Valgrind says we leak here but I don't think so because we "delete()" the memory
-    // when calling "reset_game()"
-    if emitter.particles != nil {
-        delete(emitter.particles)
-    }
-
-    emitter.particles = make([dynamic]Particle, capacity)
     emitter.pos = pos
     emitter.duration = duration
     emitter.spawn_rate = spawn_rate
