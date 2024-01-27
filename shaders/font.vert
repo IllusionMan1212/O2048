@@ -2,7 +2,7 @@
 layout (location = 0) in vec2 vertex;
 
 // per instance
-layout (location = 1) in vec4 offset;
+layout (location = 1) in vec4 offset; // x,y = position, z,w = size
 layout (location = 2) in int tex_index;
 layout (location = 3) in vec4 color;
 layout (location = 4) in mat4 model; // this takes locations 4,5,6,7

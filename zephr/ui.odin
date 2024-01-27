@@ -381,13 +381,13 @@ draw_triangle :: proc(constraints: ^UiConstraints, style: UiStyle) {
   gl.BindVertexArray(0)
 }
 
-draw_texture :: proc(constraints: ^UiConstraints, texture_id: TextureId, color: Color, radius: f32, align: Alignment) {
+draw_texture :: proc(constraints: ^UiConstraints, texture_id: TextureId, style: UiStyle) {
   use_shader(ui_shader)
 
-  set_vec4f(ui_shader, "aColor", cast(f32)color.r / 255, cast(f32)color.g / 255, cast(f32)color.b / 255, cast(f32)color.a / 255)
+  set_vec4f(ui_shader, "aColor", cast(f32)style.bg_color.r / 255, cast(f32)style.bg_color.g / 255, cast(f32)style.bg_color.b / 255, cast(f32)style.bg_color.a / 255)
   set_float(ui_shader, "uiWidth", constraints.width)
   set_float(ui_shader, "uiHeight", constraints.height)
-  set_float(ui_shader, "borderRadius", radius)
+  set_float(ui_shader, "borderRadius", style.border_radius)
   set_bool(ui_shader, "hasTexture", true)
 
   set_mat4f(ui_shader, "projection", zephr_ctx.projection)
@@ -395,7 +395,7 @@ draw_texture :: proc(constraints: ^UiConstraints, texture_id: TextureId, color: 
   rect: Rect = ---
 
   apply_constraints(constraints, &rect.pos, &rect.size)
-  apply_alignment(align, constraints, rect.size, &rect.pos)
+  apply_alignment(style.align, constraints, rect.size, &rect.pos)
 
   // set the positions after applying alignment so children can use them
   constraints.x = rect.pos.x
@@ -586,7 +586,11 @@ draw_icon_button :: proc(constraints: ^UiConstraints, icon_tex_id: TextureId, st
   set_y_constraint(&icon_constraints, 0, .RELATIVE_PIXELS)
   set_width_constraint(&icon_constraints, constraints.width * 0.8, .FIXED)
   set_height_constraint(&icon_constraints, constraints.height * 0.8, .FIXED)
-  draw_texture(&icon_constraints, icon_tex_id, style.fg_color, 0, .CENTER)
+  tex_style := UiStyle {
+    bg_color = style.fg_color,
+    align = .CENTER,
+  }
+  draw_texture(&icon_constraints, icon_tex_id, tex_style)
 
   if (clicked && state == .ACTIVE) {
     return true

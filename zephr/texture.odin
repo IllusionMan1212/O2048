@@ -1,14 +1,21 @@
 package zephr
 
+import "core:log"
+
 import gl "vendor:OpenGL"
 import stb "vendor:stb/image"
 
 TextureId :: u32
 
 load_texture :: proc(path: cstring) -> TextureId {
+  context.logger = logger
+
   texture_id: TextureId
   width, height, channels: i32
   data := stb.load(path, &width, &height, &channels, 4) // RGBA
+  if data == nil {
+    log.errorf("Failed to load texture: \"%s\"", path)
+  }
   defer stb.image_free(data)
 
   format := gl.RGBA

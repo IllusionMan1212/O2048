@@ -119,6 +119,7 @@ x11_assign_window_icon :: proc(icon_path: cstring, window_title: cstring) {
   target_size := 2 + icon_width * icon_height
 
   data := make([]u64, target_size)
+  defer delete(data)
 
   // first two elements are width and height
   data[0] = cast(u64)icon_width

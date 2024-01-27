@@ -35,6 +35,7 @@ Tile :: struct {
   value: u16,
   new_value: u16,
   merged: bool,
+  emitter: ParticleEmitter,
 }
 
 Game :: struct {
@@ -55,6 +56,7 @@ Game :: struct {
   help_dialog: bool,
 
   icon_textures: [Icon]zephr.TextureId,
+  merge_particle_texture: zephr.TextureId,
   palette: ColorPalette,
 }
 
@@ -72,9 +74,8 @@ neighbors := [4]zephr.Vec2 {
   {0, -1}, // up
   {0, 1},  // down
 }
-
+@private
 gameover_anim_time: time.Duration = 0
-
 @private
 game : Game
 
@@ -399,6 +400,8 @@ reset_game :: proc() {
       game.board[y][x].value = 0
       game.board[y][x].new_value = 0
       game.board[y][x].merged = false
+      delete(game.board[y][x].emitter.particles)
+      game.board[y][x].emitter = ParticleEmitter{}
     }
   }
 
@@ -417,6 +420,8 @@ game_init :: proc() {
   game.icon_textures[.HELP_ICON] = zephr.load_texture("assets/icons/help.png")
   game.icon_textures[.SETTINGS_ICON] = zephr.load_texture("assets/icons/settings.png")
   game.icon_textures[.CLOSE_ICON] = zephr.load_texture("assets/icons/close.png")
+
+  game.merge_particle_texture = zephr.load_texture("assets/particles/merge.png")
 
   reset_palette()
 
@@ -448,14 +453,12 @@ spawn_new_tile_with_value :: proc(x, y: u8, value: u16) {
 spawn_new_tile :: proc(x, y: u8) {
   val := get_spawned_tile_value()
 
-  game.board[x][y] = Tile{
-    value = val,
-    new_value = val,
-    position = zephr.Vec2{cast(f32)x, cast(f32)y},
-    start_pos = zephr.Vec2{cast(f32)x, cast(f32)y},
-    new_pos = zephr.Vec2{cast(f32)x, cast(f32)y},
-    scale = zephr.Vec2{1, 1},
-  }
+  game.board[x][y].value = val
+  game.board[x][y].new_value = val
+  game.board[x][y].position = zephr.Vec2{cast(f32)x, cast(f32)y}
+  game.board[x][y].start_pos = zephr.Vec2{cast(f32)x, cast(f32)y}
+  game.board[x][y].new_pos = zephr.Vec2{cast(f32)x, cast(f32)y}
+  game.board[x][y].scale = zephr.Vec2{1, 1}
 }
 
 get_random_available_tile_coords :: proc() -> zephr.Vec2 {
@@ -558,12 +561,21 @@ game_loop :: proc() {
     last_frame = now
 
     update_positions(delta_t)
+    update_emitters(delta_t)
 
     draw_bg()
     draw_board()
     draw_ui()
 
     zephr.swap_buffers()
+  }
+}
+
+update_emitters :: proc(delta_t: time.Duration) {
+  for row in &game.board {
+    for tile in &row {
+      update_emitter(delta_t, &tile.emitter)
+    }
   }
 }
 
@@ -578,13 +590,14 @@ update_positions :: proc(delta_t: time.Duration) {
             continue
           }
           if src.anim_timer < TILE_ANIM_DURATION {
-            src.position.x = math.lerp(src.start_pos.x, src.new_pos.x, cast(f32)zephr.ease_in_out_back(cast(f64)src.anim_timer / cast(f64)TILE_ANIM_DURATION))
-            src.position.y = math.lerp(src.start_pos.y, src.new_pos.y, cast(f32)zephr.ease_in_out_back(cast(f64)src.anim_timer / cast(f64)TILE_ANIM_DURATION))
+            src.position.x = math.lerp(src.start_pos.x, src.new_pos.x, cast(f32)zephr.ease_out_cubic(cast(f64)src.anim_timer / cast(f64)TILE_ANIM_DURATION))
+            src.position.y = math.lerp(src.start_pos.y, src.new_pos.y, cast(f32)zephr.ease_out_cubic(cast(f64)src.anim_timer / cast(f64)TILE_ANIM_DURATION))
             src.anim_timer += delta_t
           } else {
             dest := &game.board[cast(int)src.new_pos.x][cast(int)src.new_pos.y]
 
             if dest.new_value == src.value * 2 {
+              emitter_start(&dest.emitter, 500, dest.new_pos, time.Millisecond * 200)
               dest.merged = false
             }
 
@@ -596,6 +609,7 @@ update_positions :: proc(delta_t: time.Duration) {
               new_pos = src.new_pos,
               anim_timer = 0,
               scale = zephr.Vec2{1, 1},
+              emitter = dest.emitter,
             }
             src^ = Tile{
               value = src.new_value,
@@ -605,6 +619,7 @@ update_positions :: proc(delta_t: time.Duration) {
               new_pos = src.start_pos,
               anim_timer = 0,
               scale = zephr.Vec2{1, 1},
+              emitter = src.emitter
             }
 
             game.spawning_new_tile = true
@@ -619,13 +634,14 @@ update_positions :: proc(delta_t: time.Duration) {
             continue
           }
           if src.anim_timer < TILE_ANIM_DURATION {
-            src.position.x = math.lerp(src.start_pos.x, src.new_pos.x, cast(f32)zephr.ease_in_out_back(cast(f64)src.anim_timer / cast(f64)TILE_ANIM_DURATION))
-            src.position.y = math.lerp(src.start_pos.y, src.new_pos.y, cast(f32)zephr.ease_in_out_back(cast(f64)src.anim_timer / cast(f64)TILE_ANIM_DURATION))
+            src.position.x = math.lerp(src.start_pos.x, src.new_pos.x, cast(f32)zephr.ease_out_cubic(cast(f64)src.anim_timer / cast(f64)TILE_ANIM_DURATION))
+            src.position.y = math.lerp(src.start_pos.y, src.new_pos.y, cast(f32)zephr.ease_out_cubic(cast(f64)src.anim_timer / cast(f64)TILE_ANIM_DURATION))
             src.anim_timer += delta_t
           } else {
             dest := &game.board[cast(int)src.new_pos.x][cast(int)src.new_pos.y]
 
             if dest.new_value == src.value * 2 {
+              emitter_start(&dest.emitter, 500, dest.new_pos, time.Millisecond * 200)
               dest.merged = false
             }
 
@@ -637,6 +653,7 @@ update_positions :: proc(delta_t: time.Duration) {
               new_pos = src.new_pos,
               anim_timer = 0,
               scale = zephr.Vec2{1, 1},
+              emitter = dest.emitter,
             }
             src^ = Tile{
               value = src.new_value,
@@ -646,6 +663,7 @@ update_positions :: proc(delta_t: time.Duration) {
               new_pos = src.start_pos,
               anim_timer = 0,
               scale = zephr.Vec2{1, 1},
+              emitter = src.emitter,
             }
 
             game.spawning_new_tile = true
@@ -660,13 +678,14 @@ update_positions :: proc(delta_t: time.Duration) {
             continue
           }
           if src.anim_timer < TILE_ANIM_DURATION {
-            src.position.x = math.lerp(src.start_pos.x, src.new_pos.x, cast(f32)zephr.ease_in_out_back(cast(f64)src.anim_timer / cast(f64)TILE_ANIM_DURATION))
-            src.position.y = math.lerp(src.start_pos.y, src.new_pos.y, cast(f32)zephr.ease_in_out_back(cast(f64)src.anim_timer / cast(f64)TILE_ANIM_DURATION))
+            src.position.x = math.lerp(src.start_pos.x, src.new_pos.x, cast(f32)zephr.ease_out_cubic(cast(f64)src.anim_timer / cast(f64)TILE_ANIM_DURATION))
+            src.position.y = math.lerp(src.start_pos.y, src.new_pos.y, cast(f32)zephr.ease_out_cubic(cast(f64)src.anim_timer / cast(f64)TILE_ANIM_DURATION))
             src.anim_timer += delta_t
           } else {
             dest := &game.board[cast(int)src.new_pos.x][cast(int)src.new_pos.y]
 
             if dest.new_value == src.value * 2 {
+              emitter_start(&dest.emitter, 500, dest.new_pos, time.Millisecond * 200)
               dest.merged = false
             }
 
@@ -678,6 +697,7 @@ update_positions :: proc(delta_t: time.Duration) {
               new_pos = src.new_pos,
               anim_timer = 0,
               scale = zephr.Vec2{1, 1},
+              emitter = dest.emitter,
             }
             src^ = Tile{
               value = src.new_value,
@@ -687,6 +707,7 @@ update_positions :: proc(delta_t: time.Duration) {
               new_pos = src.start_pos,
               anim_timer = 0,
               scale = zephr.Vec2{1, 1},
+              emitter = src.emitter,
             }
 
             game.spawning_new_tile = true
@@ -701,13 +722,14 @@ update_positions :: proc(delta_t: time.Duration) {
             continue
           }
           if src.anim_timer < TILE_ANIM_DURATION {
-            src.position.x = math.lerp(src.start_pos.x, src.new_pos.x, cast(f32)zephr.ease_in_out_back(cast(f64)src.anim_timer / cast(f64)TILE_ANIM_DURATION))
-            src.position.y = math.lerp(src.start_pos.y, src.new_pos.y, cast(f32)zephr.ease_in_out_back(cast(f64)src.anim_timer / cast(f64)TILE_ANIM_DURATION))
+            src.position.x = math.lerp(src.start_pos.x, src.new_pos.x, cast(f32)zephr.ease_out_cubic(cast(f64)src.anim_timer / cast(f64)TILE_ANIM_DURATION))
+            src.position.y = math.lerp(src.start_pos.y, src.new_pos.y, cast(f32)zephr.ease_out_cubic(cast(f64)src.anim_timer / cast(f64)TILE_ANIM_DURATION))
             src.anim_timer += delta_t
           } else {
             dest := &game.board[cast(int)src.new_pos.x][cast(int)src.new_pos.y]
 
             if dest.new_value == src.value * 2 {
+              emitter_start(&dest.emitter, 500, dest.new_pos, time.Millisecond * 200)
               dest.merged = false
             }
 
@@ -719,6 +741,7 @@ update_positions :: proc(delta_t: time.Duration) {
               new_pos = src.new_pos,
               anim_timer = 0,
               scale = zephr.Vec2{1, 1},
+              emitter = dest.emitter,
             }
             src^ = Tile{
               value = src.new_value,
@@ -728,6 +751,7 @@ update_positions :: proc(delta_t: time.Duration) {
               new_pos = src.start_pos,
               anim_timer = 0,
               scale = zephr.Vec2{1, 1},
+              emitter = src.emitter
             }
 
             game.spawning_new_tile = true
@@ -883,6 +907,26 @@ draw_board :: proc() {
 
       zephr.set_y_constraint(&tile_con, tile_y_pos, .FIXED)
       zephr.set_x_constraint(&tile_con, tile_x_pos, .FIXED)
+
+      // Draw particles
+      particle_con := zephr.DEFAULT_UI_CONSTRAINTS
+      for particle in tile.emitter.particles {
+        if (particle.life <= 0) {
+          continue
+        }
+        zephr.set_parent_constraint(&particle_con, &tile_con)
+        zephr.set_x_constraint(&particle_con, particle.pos.x, .FIXED)
+        zephr.set_y_constraint(&particle_con, particle.pos.y, .FIXED)
+        particle_con.scale = particle.size
+        zephr.set_width_constraint(&particle_con, 30, .RELATIVE_PIXELS)
+        zephr.set_height_constraint(&particle_con, 1, .ASPECT_RATIO)
+        zephr.draw_texture(&particle_con, game.merge_particle_texture, zephr.UiStyle{
+          bg_color = particle.color,
+          fg_color = particle.color,
+          align = .CENTER,
+        })
+      }
+
       zephr.draw_quad(&tile_con, style)
 
       // value text

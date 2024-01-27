@@ -671,6 +671,8 @@ init :: proc(font_path: cstring, icon_path: cstring, window_title: cstring, wind
 
 deinit :: proc() {
   backend_shutdown()
+  queue.destroy(&zephr_ctx.event_queue)
+  delete(zephr_ctx.ui.elements)
   //audio_close()
 }
 
