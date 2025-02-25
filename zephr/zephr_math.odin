@@ -1,7 +1,7 @@
 package zephr
 
+import "base:intrinsics"
 import "core:math"
-import "core:intrinsics"
 
 Vec2 :: [2]f32
 Vec3 :: [3]f32

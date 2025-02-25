@@ -571,8 +571,8 @@ game_loop :: proc() {
 }
 
 update_emitters :: proc(delta_t: time.Duration) {
-  for row in &game.board {
-    for tile in &row {
+  for &row in game.board {
+    for &tile in row {
       update_emitter(delta_t, &tile.emitter)
     }
   }

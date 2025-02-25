@@ -33,7 +33,7 @@ particle_time: time.Duration = 0
 update_particles :: proc(delta_t: time.Duration, particles: ^[MAX_PARTICLES]Particle, start_pos: zephr.Vec2) {
     delta_t_f := cast(f32)time.duration_seconds(delta_t)
 
-    for p in particles {
+    for &p in particles {
         p.life -= delta_t
         if p.life <= 0 {
             continue
